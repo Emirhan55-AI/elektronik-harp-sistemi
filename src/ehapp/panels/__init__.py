@@ -1,0 +1,1 @@
+"""ehapp.panels — Yardımcı paneller."""

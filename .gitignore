@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Type checker cache
+.pyre/
+.pytype/
+.mypy_cache/
+
+# Test / Benchmark cache
+.pytest_cache/
+.benchmarks/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Project
+*.ehproj
