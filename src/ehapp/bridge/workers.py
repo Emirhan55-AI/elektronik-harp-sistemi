@@ -38,13 +38,11 @@ class PlotRefreshTimer(QObject):
     - STFT İşleyici çıkışından: PSD → Spektrum, Waterfall
     - CFAR Tespiti çıkışından: Eşik eğrisi, Ham tespitler
     - Kararlılık Filtresi çıkışından: Onaylı tespitler
-    - SigMF Kaynağı çıkışından: IQ verisi
     """
 
     # Spektrum ve waterfall
     fft_data_ready = Signal(np.ndarray, float, float)        # (psd_db, center_freq, sample_rate)
     waterfall_data_ready = Signal(np.ndarray, float, float)  # (psd_db, center_freq, sample_rate)
-    iq_data_ready = Signal(np.ndarray)                       # (iq_complex)
 
     # CFAR overlay
     threshold_data_ready = Signal(np.ndarray, float, float)  # (threshold_db, center_freq, sample_rate)
@@ -105,11 +103,7 @@ class PlotRefreshTimer(QObject):
                 cf = envelope.center_freq
                 sr = envelope.sample_rate
 
-                if data_type == "iq_block":
-                    # IQ verisi → IQ grafiği
-                    self.iq_data_ready.emit(envelope.payload)
-
-                elif data_type == "fft_frame":
+                if data_type == "fft_frame":
                     # PSD / FFT çerçevesi
                     if port_name == "threshold_out":
                         # CFAR eşik eğrisi
@@ -117,7 +111,11 @@ class PlotRefreshTimer(QObject):
                     else:
                         # Normal PSD → Spektrum
                         self.fft_data_ready.emit(envelope.payload, cf, sr)
-                        self.waterfall_data_ready.emit(envelope.payload, cf, sr)
+                        waterfall_row = envelope.metadata.get("waterfall_row")
+                        if isinstance(waterfall_row, np.ndarray):
+                            self.waterfall_data_ready.emit(waterfall_row, cf, sr)
+                        else:
+                            self.waterfall_data_ready.emit(envelope.payload, cf, sr)
 
                 elif data_type == "detections":
                     # Ham CFAR tespitleri

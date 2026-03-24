@@ -14,7 +14,7 @@ from typing import ClassVar
 
 import numpy as np
 
-from ehcore.algorithms.detection import StabilityTracker, ConfirmedTarget
+from ehcore.algorithms.detection import StabilityTracker
 from ehcore.algorithms.detection.cfar import CFARDetection
 from ehcore.contracts import (
     DataEnvelope,
@@ -33,24 +33,25 @@ class StabilityFilterAdapter(BaseAdapter):
 
     descriptor: ClassVar[NodeDescriptor] = NodeDescriptor(
         node_id="stability_filter",
-        display_name="Kararlılık Filtresi",
+        display_name="Kararlılık",
         category="Tespit",
         description=(
-            "CFAR tespitlerini zaman boyunca takip eder. "
-            "Anlık parazitleri eler, sadece kararlı sinyalleri onaylar."
+            "Aday tespitleri zaman boyunca takip eder ve kararlı hedefleri doğrular."
         ),
         input_ports=(
             PortDef(
                 name="detections_in",
                 port_type=PortType.DETECTIONS,
-                display_name="Ham Tespitler",
+                display_name="Tespitler",
+                tooltip="CFAR tarafından bulunan aday hedefler bu girişe bağlanır.",
             ),
         ),
         output_ports=(
             PortDef(
                 name="confirmed_out",
                 port_type=PortType.DETECTION_LIST,
-                display_name="Onaylı Tespitler",
+                display_name="Onaylı",
+                tooltip="Zaman içinde doğrulanmış hedefler bu çıkıştan verilir.",
             ),
         ),
         config_schema={
@@ -68,6 +69,16 @@ class StabilityFilterAdapter(BaseAdapter):
                 "type": "int",
                 "default": 4,
                 "label": "Frekans Eşleştirme Toleransı (bin)",
+            },
+            "stale_after_sec": {
+                "type": "float",
+                "default": 1.0,
+                "label": "Stale Durum Gecikmesi (sn)",
+            },
+            "confirmed_hold_sec": {
+                "type": "float",
+                "default": 8.0,
+                "label": "Onaylı Hedef Tutma Süresi (sn)",
             },
         },
     )
@@ -87,6 +98,8 @@ class StabilityFilterAdapter(BaseAdapter):
             min_hits=int(self._config.get("min_hits", 5)),
             max_misses=int(self._config.get("max_misses", 3)),
             freq_tolerance_bins=int(self._config.get("freq_tolerance_bins", 4)),
+            confirmed_stale_after=float(self._config.get("stale_after_sec", 1.0)),
+            confirmed_hold_seconds=float(self._config.get("confirmed_hold_sec", 8.0)),
         )
 
     def stop(self) -> None:
@@ -139,6 +152,7 @@ class StabilityFilterAdapter(BaseAdapter):
                         t.first_seen,
                         t.last_seen,
                         t.hit_count,
+                        t.state,
                     )
                     for t in confirmed
                 ],
@@ -152,6 +166,7 @@ class StabilityFilterAdapter(BaseAdapter):
                     ("first_seen", np.float64),
                     ("last_seen", np.float64),
                     ("hit_count", np.int32),
+                    ("state", "U12"),
                 ],
             )
         else:
@@ -167,6 +182,7 @@ class StabilityFilterAdapter(BaseAdapter):
                     ("first_seen", np.float64),
                     ("last_seen", np.float64),
                     ("hit_count", np.int32),
+                    ("state", "U12"),
                 ],
             )
 

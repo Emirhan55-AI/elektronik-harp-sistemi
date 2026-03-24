@@ -37,10 +37,15 @@ class SigMFSourceAdapter(BaseAdapter):
         node_id="sigmf_source",
         display_name="SigMF Kaynağı",
         category="Kaynaklar",
-        description="SigMF dosyasından IQ verisi okur ve pipeline'a besler.",
+        description="SigMF dosyasından ham IQ verisini okuyup akışa besler.",
         input_ports=(),
         output_ports=(
-            PortDef(name="iq_out", port_type=PortType.IQ, display_name="IQ Çıkış"),
+            PortDef(
+                name="iq_out",
+                port_type=PortType.IQ,
+                display_name="IQ",
+                tooltip="Kaynaktan okunan ham IQ verisi bu çıkıştan verilir.",
+            ),
         ),
         config_schema={
             "file_path": {

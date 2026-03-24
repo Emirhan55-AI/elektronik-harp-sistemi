@@ -92,6 +92,7 @@ class SpectrumPlot(QWidget):
             pen=pg.mkPen(COLORS["plot_marker"], width=1, style=pg.QtCore.Qt.PenStyle.DotLine),
         )
         self._plot_widget.addItem(self._marker)
+        self._marker.hide()
 
         # 6. Cursor readout
         self._cursor_label = pg.TextItem(
@@ -100,6 +101,7 @@ class SpectrumPlot(QWidget):
         )
         self._plot_widget.addItem(self._cursor_label)
         self._cursor_label.setPos(0, 0)
+        self._cursor_label.hide()
 
         self._marker.sigPositionChanged.connect(self._update_cursor)
         self._freq_axis: np.ndarray | None = None
@@ -202,11 +204,15 @@ class SpectrumPlot(QWidget):
         self._freq_axis = None
         self._last_psd = None
         self._cursor_label.setText("")
+        self._cursor_label.hide()
         self._marker.setValue(0)
+        self._marker.hide()
         self._plot_widget.autoRange()
 
     def _update_cursor(self) -> None:
         """Marker pozisyonunda readout güncelle."""
+        if not self._marker.isVisible():
+            return
         freq = self._marker.value()
         power_text = ""
         if self._freq_axis is not None and self._last_psd is not None:
@@ -216,7 +222,10 @@ class SpectrumPlot(QWidget):
 
         self._cursor_label.setText(f"{freq:.3f} MHz{power_text}")
         self._cursor_label.setPos(freq, self._plot_widget.viewRange()[1][1])
+        self._cursor_label.show()
 
     def set_marker_freq(self, freq_mhz: float) -> None:
         """Marker'ı belirli frekansa taşı (MHz)."""
         self._marker.setValue(freq_mhz)
+        self._marker.show()
+        self._update_cursor()

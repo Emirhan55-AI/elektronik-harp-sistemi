@@ -60,12 +60,13 @@ class AppController(QObject):
     def plot_timer(self) -> PlotRefreshTimer:
         return self._plot_timer
 
-    def set_graph(self, graph: PipelineGraph) -> None:
+    def set_graph(self, graph: PipelineGraph, announce: bool = True) -> None:
         """Grafiği dışarıdan yükle (Persistence için)."""
         self.stop_pipeline()
         self._graph = graph
         self._known_target_ids.clear()
-        self.log_message.emit("Yeni proje yüklendi.", "info")
+        if announce:
+            self.log_message.emit("Yeni proje yüklendi.", "info")
 
     def _log_new_targets(self, conf_array, cf, sr, fft_size: int = 0) -> None:
         """Yeni tespit edilen kararlı hedefleri terminale bas."""

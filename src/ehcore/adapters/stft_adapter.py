@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from ehcore.algorithms.dsp import compute_psd
+import numpy as np
+
+from ehcore.algorithms.dsp.stft import compute_stft
 from ehcore.contracts import (
     DataEnvelope,
     NodeDescriptor,
@@ -29,14 +31,24 @@ class STFTAdapter(BaseAdapter):
 
     descriptor: ClassVar[NodeDescriptor] = NodeDescriptor(
         node_id="stft_processor",
-        display_name="STFT İşleyici",
+        display_name="STFT",
         category="Ön İşleme",
-        description="IQ verisinden Welch PSD hesaplar. DC ofset temizler.",
+        description="IQ verisini frekans düzlemine çevirir ve spektrum üretir.",
         input_ports=(
-            PortDef(name="iq_in", port_type=PortType.IQ, display_name="IQ Giriş"),
+            PortDef(
+                name="iq_in",
+                port_type=PortType.IQ,
+                display_name="IQ",
+                tooltip="Ham IQ verisi bu girişten alınır.",
+            ),
         ),
         output_ports=(
-            PortDef(name="fft_out", port_type=PortType.FFT, display_name="PSD Çıkış"),
+            PortDef(
+                name="fft_out",
+                port_type=PortType.FFT,
+                display_name="FFT",
+                tooltip="İşlenmiş frekans spektrumu bu çıkıştan verilir.",
+            ),
         ),
         config_schema={
             "fft_size": {
@@ -78,13 +90,14 @@ class STFTAdapter(BaseAdapter):
         remove_dc = bool(self._config.get("remove_dc", True))
 
         iq_data = iq_envelope.payload
-        _freqs, psd_db = compute_psd(
+        spectrogram_db, _freqs = compute_stft(
             iq_data,
             fft_size=fft_size,
-            sample_rate=iq_envelope.sample_rate,
             window=window,
             remove_dc=remove_dc,
         )
+        psd_db = np.mean(spectrogram_db, axis=0)
+        waterfall_row = spectrogram_db[-1].astype(np.float32, copy=False)
 
         # FFT / PSD çıkışı
         fft_envelope = iq_envelope.clone_header(
@@ -92,6 +105,7 @@ class STFTAdapter(BaseAdapter):
             payload=psd_db,
         )
         fft_envelope.metadata["fft_size"] = fft_size
+        fft_envelope.metadata["waterfall_row"] = waterfall_row
 
         return {
             "fft_out": fft_envelope,

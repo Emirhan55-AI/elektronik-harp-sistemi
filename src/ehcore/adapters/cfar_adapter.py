@@ -32,22 +32,31 @@ class CFARAdapter(BaseAdapter):
 
     descriptor: ClassVar[NodeDescriptor] = NodeDescriptor(
         node_id="cfar_detector",
-        display_name="CFAR Tespiti",
+        display_name="CFAR",
         category="Tespit",
-        description="CA-CFAR ile gürültü tabanına göre sinyal tespiti yapar.",
+        description="Spektrum üzerinde gürültü tabanına göre aday sinyalleri ayıklar.",
         input_ports=(
-            PortDef(name="fft_in", port_type=PortType.FFT, display_name="PSD Giriş"),
+            PortDef(
+                name="fft_in",
+                port_type=PortType.FFT,
+                display_name="FFT",
+                tooltip="STFT çıkışındaki spektrum bu girişe bağlanır.",
+            ),
         ),
         output_ports=(
             PortDef(
                 name="detections_out",
                 port_type=PortType.DETECTIONS,
-                display_name="Ham Tespitler",
+                display_name="Tespitler",
+                tooltip="Bulunan aday hedefler bu çıkıştan verilir.",
             ),
             PortDef(
                 name="threshold_out",
                 port_type=PortType.FFT,
-                display_name="Eşik Eğrisi",
+                display_name="Eşik",
+                visible=False,
+                required=False,
+                tooltip="Spektrumdaki eşik eğrisini besleyen iç çıkış.",
             ),
         ),
         config_schema={

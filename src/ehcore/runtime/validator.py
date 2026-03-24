@@ -171,6 +171,32 @@ def _check_port_compatibility(graph: PipelineGraph, messages: list[ValidationMes
             ))
 
 
+def _check_unused_outputs(graph: PipelineGraph, messages: list[ValidationMessage]) -> None:
+    for node in graph.nodes:
+        adapter_cls = NodeRegistry.get_adapter_class(node.node_type_id)
+        if adapter_cls is None:
+            continue
+
+        descriptor = adapter_cls.descriptor
+        connected_output_ports = {
+            edge.source_port
+            for edge in graph.get_edges_from(node.instance_id)
+        }
+        for port in descriptor.output_ports:
+            if not port.visible:
+                continue
+            if port.name in connected_output_ports:
+                continue
+            messages.append(ValidationMessage(
+                severity=Severity.WARNING,
+                node_id=node.instance_id,
+                message=(
+                    f"[{descriptor.display_name}] "
+                    f"Çıkış '{port.display_name}' boşta - kullanılmıyor."
+                ),
+            ))
+
+
 def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
     """
     Pipeline'ı doğrula ve mesajları döndür.
@@ -191,5 +217,6 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
 
     _check_node_requirements(graph, messages)
     _check_port_compatibility(graph, messages)
+    _check_unused_outputs(graph, messages)
 
     return messages

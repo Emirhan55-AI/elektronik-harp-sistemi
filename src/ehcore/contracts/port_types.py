@@ -73,8 +73,17 @@ class PortDef:
     port_type: PortType      # Veri tipi
     display_name: str = ""   # Türkçe görünen ad (opsiyonel)
     required: bool = True    # Input portlar için: bağlanması zorunlu mu?
+    visible: bool = True     # Canvas üzerinde kullanıcıya gösterilsin mi?
+    tooltip: str = ""        # İnsan dilinde kısa yardım metni
 
     def __post_init__(self) -> None:
         if not self.display_name:
             # frozen=True olduğu için object.__setattr__ kullanılmalı
             object.__setattr__(self, "display_name", self.port_type.display_name())
+        if not self.tooltip:
+            direction = "çıkış" if self.name.endswith("_out") else "giriş"
+            object.__setattr__(
+                self,
+                "tooltip",
+                f"{self.display_name} {direction} portu.",
+            )

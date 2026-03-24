@@ -49,9 +49,11 @@ class NodeItem(QGraphicsItem):
         # Portlar
         self._input_ports: list[PortItem] = []
         self._output_ports: list[PortItem] = []
+        self._visible_input_defs = [p for p in descriptor.input_ports if p.visible]
+        self._visible_output_defs = [p for p in descriptor.output_ports if p.visible]
 
         # Boyut hesapla
-        n_ports = max(len(descriptor.input_ports), len(descriptor.output_ports), 1)
+        n_ports = max(len(self._visible_input_defs), len(self._visible_output_defs), 1)
         self._body_h = n_ports * self._port_spacing + 12
         self._width = self._min_width
         self._height = self._header_h + self._body_h
@@ -88,6 +90,17 @@ class NodeItem(QGraphicsItem):
         font.setWeight(QFont.Weight.Medium)
         self._title_item.setFont(font)
         self._title_item.setPos(8, 3)
+        tooltip = self._build_tooltip()
+        self.setToolTip(tooltip)
+        self._title_item.setToolTip(tooltip)
+        self._validation_item = QGraphicsTextItem("", self)
+        self._validation_item.setDefaultTextColor(QColor(COLORS["warning"]))
+        validation_font = QFont(FONTS["family"], max(8, FONTS["size_sm"] - 1))
+        self._validation_item.setFont(validation_font)
+        self._validation_item.setPos(8, self._height + 4)
+        self._validation_item.hide()
+        self._validation_severity: str | None = None
+        self._validation_messages: list[str] = []
 
         # Genişliği başlık metnine göre ayarla
         text_width = self._title_item.boundingRect().width() + 20
@@ -99,18 +112,38 @@ class NodeItem(QGraphicsItem):
     def _create_ports(self) -> None:
         """Input ve output portlarını oluştur ve yerleştir."""
         # Input portlar (sol taraf)
-        for i, port_def in enumerate(self.descriptor.input_ports):
+        for i, port_def in enumerate(self._visible_input_defs):
             port = PortItem(port_def, is_output=False, parent=self)
             y = self._header_h + 12 + i * self._port_spacing
             port.setPos(0, y)
             self._input_ports.append(port)
 
         # Output portlar (sağ taraf)
-        for i, port_def in enumerate(self.descriptor.output_ports):
+        for i, port_def in enumerate(self._visible_output_defs):
             port = PortItem(port_def, is_output=True, parent=self)
             y = self._header_h + 12 + i * self._port_spacing
             port.setPos(self._width, y)
             self._output_ports.append(port)
+
+    def _build_tooltip(self) -> str:
+        """Node üzerine gelince gösterilecek kısa açıklamayı üret."""
+        lines = []
+        if self.descriptor.description:
+            lines.append(self.descriptor.description)
+
+        if self._visible_input_defs:
+            inputs = ", ".join(port.display_name for port in self._visible_input_defs)
+            lines.append(f"Giriş: {inputs}")
+        else:
+            lines.append("Giriş: Yok")
+
+        if self._visible_output_defs:
+            outputs = ", ".join(port.display_name for port in self._visible_output_defs)
+            lines.append(f"Çıkış: {outputs}")
+        else:
+            lines.append("Çıkış: Yok")
+
+        return "\n".join(lines)
 
     @property
     def input_ports(self) -> list[PortItem]:
@@ -134,6 +167,22 @@ class NodeItem(QGraphicsItem):
             self._glow_effect.setEnabled(True)
         else:
             self._glow_effect.setEnabled(False)
+        self.update()
+
+    def set_validation_messages(self, messages: list[str], severity: str | None = None) -> None:
+        """Inline validation uyarılarını güncelle."""
+        self._validation_messages = messages
+        self._validation_severity = severity
+        if not messages:
+            self._validation_item.hide()
+            self.update()
+            return
+
+        self._validation_item.setPlainText(messages[0])
+        color_key = "error" if severity == "error" else "warning"
+        self._validation_item.setDefaultTextColor(QColor(COLORS[color_key]))
+        self._validation_item.setPos(8, self._height + 4)
+        self._validation_item.show()
         self.update()
 
     # ── QGraphicsItem overrides ──────────────────────────────────
@@ -176,6 +225,10 @@ class NodeItem(QGraphicsItem):
         if self.isSelected():
             border_color = self._selected_border
             border_width = 2.5
+        elif self._validation_severity == "error":
+            border_color = QColor(COLORS["error"])
+        elif self._validation_severity == "warning":
+            border_color = QColor(COLORS["warning"])
         elif self._state == "running":
             border_color = QColor(COLORS["node_running"])
         elif self._state == "error":

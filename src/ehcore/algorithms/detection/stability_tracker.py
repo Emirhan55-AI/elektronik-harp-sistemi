@@ -19,7 +19,7 @@ NOT: Bu dosya ehcore/algorithms/detection/ altındadır.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .cfar import CFARDetection
 
@@ -37,6 +37,7 @@ class ConfirmedTarget:
     last_seen: float               # Son tespit zamanı (epoch)
     hit_count: int                 # Toplam tespit sayısı
     confirmed: bool                # Kararlılık eşiğini geçti mi?
+    state: str                     # "confirmed" | "stale"
 
 
 @dataclass
@@ -53,6 +54,7 @@ class _Track:
     hit_count: int = 0
     miss_count: int = 0  # Ardışık kaçırma sayısı
     confirmed: bool = False
+    state: str = "candidate"
 
 
 class StabilityTracker:
@@ -70,10 +72,14 @@ class StabilityTracker:
         min_hits: int = 5,
         max_misses: int = 3,
         freq_tolerance_bins: int = 4,
+        confirmed_stale_after: float = 1.0,
+        confirmed_hold_seconds: float = 8.0,
     ) -> None:
         self.min_hits = min_hits
         self.max_misses = max_misses
         self.freq_tolerance_bins = freq_tolerance_bins
+        self.confirmed_stale_after = confirmed_stale_after
+        self.confirmed_hold_seconds = confirmed_hold_seconds
 
         self._tracks: list[_Track] = []
         self._next_id: int = 1
@@ -106,7 +112,10 @@ class StabilityTracker:
                 track = self._tracks[best_track_idx]
                 track.center_bin = det.bin_index
                 track.freq_normalized = det.freq_normalized
-                track.bandwidth_bins = max(track.bandwidth_bins, det.bandwidth_bins)
+                track.bandwidth_bins = max(
+                    1,
+                    int(round((track.bandwidth_bins + det.bandwidth_bins) / 2)),
+                )
                 track.power_db = det.power_db
                 track.snr_db = det.snr_db
                 track.last_seen = now
@@ -116,6 +125,7 @@ class StabilityTracker:
                 if track.hit_count >= self.min_hits:
                     track.confirmed = True
 
+                track.state = self._state_for_track(track, now)
                 matched_tracks.add(best_track_idx)
                 matched_detections.add(det_idx)
 
@@ -133,22 +143,26 @@ class StabilityTracker:
                     last_seen=now,
                     hit_count=1,
                     miss_count=0,
+                    state="candidate",
                 ))
+                matched_tracks.add(len(self._tracks) - 1)
                 self._next_id += 1
 
         # 3. Eşleşmeyen track'ler → miss sayacını artır
         for idx in range(len(self._tracks)):
             if idx not in matched_tracks:
                 self._tracks[idx].miss_count += 1
+                self._tracks[idx].state = self._state_for_track(self._tracks[idx], now)
 
         # 4. Çok fazla kaçıran track'leri sil
         self._tracks = [
             t for t in self._tracks
-            if t.miss_count <= self.max_misses
+            if self._should_keep_track(t, now)
         ]
 
         # 5. Onaylı hedefleri döndür
-        confirmed = [
+        confirmed = sorted(
+            [
             ConfirmedTarget(
                 target_id=t.target_id,
                 center_freq_normalized=t.freq_normalized,
@@ -160,10 +174,17 @@ class StabilityTracker:
                 last_seen=t.last_seen,
                 hit_count=t.hit_count,
                 confirmed=t.confirmed,
+                state=t.state,
             )
             for t in self._tracks
             if t.confirmed
-        ]
+            ],
+            key=lambda target: (
+                0 if target.state == "confirmed" else 1,
+                -target.hit_count,
+                target.center_bin,
+            ),
+        )
 
         return confirmed
 
@@ -194,8 +215,28 @@ class StabilityTracker:
 
         for idx, track in enumerate(self._tracks):
             dist = abs(track.center_bin - det.bin_index)
-            if dist <= self.freq_tolerance_bins and dist < best_dist:
+            tolerance = max(
+                1,
+                self.freq_tolerance_bins,
+                track.bandwidth_bins // 2,
+                det.bandwidth_bins // 2,
+            )
+            if dist <= tolerance and dist < best_dist:
                 best_dist = dist
                 best_idx = idx
 
         return best_idx
+
+    def _should_keep_track(self, track: _Track, now: float) -> bool:
+        """Track'in bellekte tutulup tutulmayacağını belirle."""
+        if track.confirmed:
+            return (now - track.last_seen) <= self.confirmed_hold_seconds
+        return track.miss_count <= self.max_misses
+
+    def _state_for_track(self, track: _Track, now: float) -> str:
+        """Track durumunu hesapla."""
+        if not track.confirmed:
+            return "candidate"
+        if (now - track.last_seen) >= self.confirmed_stale_after:
+            return "stale"
+        return "confirmed"

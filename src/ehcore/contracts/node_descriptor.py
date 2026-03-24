@@ -77,7 +77,19 @@ class NodeDescriptor:
             if not isinstance(spec, dict):
                 continue
             required = spec.get("required", False)
-            if required and key not in config:
-                label = spec.get("label", key)
+            if not required:
+                continue
+
+            label = spec.get("label", key)
+            if key not in config:
+                errors.append(f"Zorunlu ayar eksik: {label}")
+                continue
+
+            value = config.get(key)
+            if value is None:
+                errors.append(f"Zorunlu ayar eksik: {label}")
+                continue
+
+            if isinstance(value, str) and not value.strip():
                 errors.append(f"Zorunlu ayar eksik: {label}")
         return errors

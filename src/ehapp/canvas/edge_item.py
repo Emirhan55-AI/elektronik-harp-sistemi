@@ -74,6 +74,8 @@ class EdgeItem(QGraphicsPathItem):
         """Preview'dan gerçek bağlantıya geçiş."""
         self.target_port = target_port
         self._is_preview = False
+        if self.source_port is not None:
+            self.source_port.add_edge(self)
         target_port.add_edge(self)
         self.setPen(QPen(self._color, self._width, Qt.PenStyle.SolidLine))
         self.update_path()

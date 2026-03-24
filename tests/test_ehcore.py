@@ -13,6 +13,15 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 
+def _ensure_qapp():
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    return app
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Contracts
 # ═══════════════════════════════════════════════════════════════════
@@ -241,6 +250,29 @@ class TestGraph:
 
         assert g.remove_edge_between("src1", "iq_out", "fft1", "iq_in") is True
         assert len(g.edges) == 0
+
+
+class TestCanvas:
+    def test_preview_edge_registers_with_source_port_on_complete(self):
+        _ensure_qapp()
+        import ehcore.adapters
+        from ehapp.canvas.edge_item import EdgeItem
+        from ehapp.canvas.node_item import NodeItem
+        from ehcore.registry import NodeRegistry
+
+        src_desc = NodeRegistry.get_adapter_class("sigmf_source").descriptor
+        tgt_desc = NodeRegistry.get_adapter_class("stft_processor").descriptor
+        src_node = NodeItem("src1", src_desc)
+        tgt_node = NodeItem("fft1", tgt_desc)
+
+        src_port = src_node.get_port("iq_out")
+        tgt_port = tgt_node.get_port("iq_in")
+        edge = EdgeItem(source_port=src_port, target_port=None)
+
+        edge.complete_connection(tgt_port)
+
+        assert edge in src_port.connected_edges
+        assert edge in tgt_port.connected_edges
 
 
 class TestScheduler:
