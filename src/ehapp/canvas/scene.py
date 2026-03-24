@@ -32,7 +32,7 @@ class NodeEditorScene(QGraphicsScene):
     node_added = Signal(str, str)          # (instance_id, node_type_id)
     node_removed = Signal(str)             # (instance_id)
     edge_added = Signal(str, str, str, str)  # (src_node, src_port, tgt_node, tgt_port)
-    edge_removed = Signal()
+    edge_removed = Signal(str, str, str, str)  # (src_node, src_port, tgt_node, tgt_port)
     node_selected = Signal(str)            # (instance_id) — properties panel için
     node_double_clicked = Signal(str)      # (instance_id) — properties aç
     context_add_requested = Signal(str, QPointF)  # (node_type_id, pos) — sağ tık menüden ekleme
@@ -145,6 +145,10 @@ class NodeEditorScene(QGraphicsScene):
     def node_items(self) -> dict[str, NodeItem]:
         return dict(self._nodes)
 
+    @property
+    def edge_items(self) -> list[EdgeItem]:
+        return list(self._edges)
+
     # ── Edge İşlemleri ───────────────────────────────────────────
 
     def add_edge_between(
@@ -153,6 +157,7 @@ class NodeEditorScene(QGraphicsScene):
         source_port_name: str,
         target_node_id: str,
         target_port_name: str,
+        emit_signal: bool = True,
     ) -> EdgeItem | None:
         """İki node portu arasında kenar ekle (programmatik)."""
         src_node = self._nodes.get(source_node_id)
@@ -168,19 +173,53 @@ class NodeEditorScene(QGraphicsScene):
         edge = EdgeItem(src_port, tgt_port)
         self.addItem(edge)
         self._edges.append(edge)
-        self.edge_added.emit(
-            source_node_id, source_port_name,
-            target_node_id, target_port_name,
-        )
+        if emit_signal:
+            self.edge_added.emit(
+                source_node_id, source_port_name,
+                target_node_id, target_port_name,
+            )
         return edge
 
-    def remove_edge(self, edge: EdgeItem) -> None:
+    def remove_edge(self, edge: EdgeItem, emit_signal: bool = True) -> None:
         """Edge'i sahneden sil."""
+        source_node = self._find_node_for_port(edge.source_port) if edge.source_port else None
+        target_node = self._find_node_for_port(edge.target_port) if edge.target_port else None
+
         edge.disconnect_ports()
         if edge in self._edges:
             self._edges.remove(edge)
         self.removeItem(edge)
-        self.edge_removed.emit()
+        if emit_signal and source_node is not None and target_node is not None:
+            self.edge_removed.emit(
+                source_node.instance_id,
+                edge.source_port.port_def.name,
+                target_node.instance_id,
+                edge.target_port.port_def.name,
+            )
+
+    def remove_edge_between(
+        self,
+        source_node_id: str,
+        source_port_name: str,
+        target_node_id: str,
+        target_port_name: str,
+        emit_signal: bool = True,
+    ) -> bool:
+        """Belirli endpoint'lere sahip edge'i sil."""
+        for edge in list(self._edges):
+            source_node = self._find_node_for_port(edge.source_port) if edge.source_port else None
+            target_node = self._find_node_for_port(edge.target_port) if edge.target_port else None
+            if source_node is None or target_node is None:
+                continue
+            if (
+                source_node.instance_id == source_node_id
+                and edge.source_port.port_def.name == source_port_name
+                and target_node.instance_id == target_node_id
+                and edge.target_port.port_def.name == target_port_name
+            ):
+                self.remove_edge(edge, emit_signal=emit_signal)
+                return True
+        return False
 
     # ── Bağlantı Çizim ──────────────────────────────────────────
 
@@ -209,7 +248,7 @@ class NodeEditorScene(QGraphicsScene):
 
             # Output → Input yönünde mi?
             if src.is_output and not tgt.is_output:
-                if check_port_compatibility(src.port_def.port_type, tgt.port_def.port_type):
+                if not tgt.is_connected and check_port_compatibility(src.port_def.port_type, tgt.port_def.port_type):
                     self._drawing_edge.complete_connection(tgt)
                     self._edges.append(self._drawing_edge)
 
@@ -225,7 +264,7 @@ class NodeEditorScene(QGraphicsScene):
 
             elif not src.is_output and tgt.is_output:
                 # Ters yön: input'tan output'a çizilmiş — yer değiştir
-                if check_port_compatibility(tgt.port_def.port_type, src.port_def.port_type):
+                if not src.is_connected and check_port_compatibility(tgt.port_def.port_type, src.port_def.port_type):
                     # Edge'i yeniden oluştur doğru yönde
                     self.removeItem(self._drawing_edge)
                     edge = EdgeItem(tgt, src)
@@ -407,7 +446,6 @@ class NodeEditorScene(QGraphicsScene):
         chosen = menu.exec(event.screenPos())
         if chosen in type_actions:
             node_type_id, drop_pos = type_actions[chosen]
-            self._context_add_pos = drop_pos
             self.context_add_requested.emit(node_type_id, drop_pos)
         elif chosen == act_select_all:
             for it in self.items():

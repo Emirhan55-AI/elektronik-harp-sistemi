@@ -7,8 +7,7 @@ Kaydedilen bilgiler:
 - Proje sürümü
 - Node'lar (tip, config, pozisyon)
 - Bağlantılar (edge'ler)
-- Aktif sekme
-- Tema seçimi
+- İsteğe bağlı çalışma alanı görünüm bilgileri
 """
 
 from __future__ import annotations
@@ -35,15 +34,12 @@ def save_project(
     Args:
         filepath: .ehproj dosya yolu.
         graph: Pipeline grafiği.
-        workspace: Ek çalışma alanı bilgileri (aktif sekme, vb.)
+        workspace: Ek çalışma alanı bilgileri.
     """
     data = {
         "version": PROJECT_VERSION,
         "graph": graph.to_dict(),
-        "workspace": workspace or {
-            "active_tab": 0,
-            "theme": "dark",
-        },
+        "workspace": workspace or {},
     }
 
     path = Path(filepath)
@@ -74,15 +70,15 @@ def load_project(filepath: str | Path) -> tuple[PipelineGraph, dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Versiyon kontrolü
     version = data.get("version", "unknown")
     if version != PROJECT_VERSION:
-        # İleride migration mantığı eklenebilir
-        pass
+        raise ValueError(
+            f"Desteklenmeyen proje sürümü: {version} (beklenen: {PROJECT_VERSION})"
+        )
 
     graph_data = data.get("graph", {"nodes": [], "edges": []})
     graph = PipelineGraph.from_dict(graph_data)
 
-    workspace = data.get("workspace", {"active_tab": 0, "theme": "dark"})
+    workspace = data.get("workspace", {})
 
     return graph, workspace

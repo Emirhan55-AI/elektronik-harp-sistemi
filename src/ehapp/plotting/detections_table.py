@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem,
     QHeaderView, QLabel, QHBoxLayout, QFrame,
@@ -89,6 +89,7 @@ class DetectionsTable(QWidget):
         confirmed_array: np.ndarray,
         center_freq: float = 0.0,
         sample_rate: float = 1.0,
+        fft_size: int = 0,
     ) -> None:
         """
         Onaylı hedef tablosunu tamamen güncelle.
@@ -104,7 +105,6 @@ class DetectionsTable(QWidget):
             self._count_label.setText("0 hedef")
             return
 
-        fft_size = 1024  # TODO: config'den al
         now = time.time()
 
         for row_data in confirmed_array:
@@ -118,7 +118,8 @@ class DetectionsTable(QWidget):
             power_db = float(row_data["power_db"])
             snr_db = float(row_data["snr_db"])
             bw_bins = int(row_data["bandwidth_bins"])
-            bw_hz = bw_bins * (sample_rate / fft_size)
+            bin_resolution_hz = (sample_rate / fft_size) if fft_size > 0 else 0.0
+            bw_hz = bw_bins * bin_resolution_hz
             bw_khz = bw_hz / 1e3
             hit_count = int(row_data["hit_count"])
             first_seen = float(row_data["first_seen"])
@@ -151,32 +152,6 @@ class DetectionsTable(QWidget):
 
         count = self._table.rowCount()
         self._count_label.setText(f"{count} hedef")
-
-    def add_detection(
-        self,
-        freq_mhz: float,
-        power_db: float,
-        bw_khz: float = 0.0,
-        sig_type: str = "-",
-        timestamp: str = "",
-    ) -> None:
-        """Eski API — uyumluluk için korundu."""
-        row = self._table.rowCount()
-        self._table.insertRow(row)
-
-        items = [
-            "-",
-            f"{freq_mhz:.4f}",
-            f"{power_db:.1f}",
-            "-",
-            f"{bw_khz:.1f}",
-            "-",
-            timestamp,
-        ]
-        for col, text in enumerate(items):
-            item = QTableWidgetItem(text)
-            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(row, col, item)
 
     def clear_detections(self) -> None:
         """Tabloyu temizle."""

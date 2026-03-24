@@ -139,6 +139,7 @@ class CFARAdapter(BaseAdapter):
             data_type="detections",
             payload=det_array,
             metadata={
+                **fft_envelope.metadata,
                 "detection_count": result.count,
                 "cfar_guard": guard,
                 "cfar_ref": ref,

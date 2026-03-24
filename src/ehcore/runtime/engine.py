@@ -10,6 +10,7 @@ Bu modül PySide6'dan bağımsızdır; worker thread'den çağrılmalıdır.
 
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import time

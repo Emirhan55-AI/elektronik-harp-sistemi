@@ -26,10 +26,6 @@ class PipelineWorker(QObject):
         self.state_changed.emit(state)
 
     def on_error(self, node_id: str, msg: str) -> None:
-        # The provided instruction for this method seems to be a copy-paste error
-        # from another part of the code, introducing undefined variables and syntax issues.
-        # To maintain syntactic correctness as per instructions, this specific
-        # problematic change is not applied. The original method is kept.
         self.error_occurred.emit(node_id, msg)
         self.log_message.emit(msg, "error")
 
@@ -55,7 +51,7 @@ class PlotRefreshTimer(QObject):
     cfar_detections_ready = Signal(np.ndarray, float, float) # (det_structured_array, center_freq, sample_rate)
 
     # Onaylı tespitler
-    confirmed_targets_ready = Signal(np.ndarray, float, float)  # (confirmed_structured_array, center_freq, sample_rate)
+    confirmed_targets_ready = Signal(np.ndarray, float, float, int)  # (confirmed_structured_array, center_freq, sample_rate, fft_size)
 
     def __init__(self, interval_ms: int = 50, parent=None) -> None:
         super().__init__(parent)
@@ -64,9 +60,6 @@ class PlotRefreshTimer(QObject):
         self._timer.timeout.connect(self._refresh)
         self._engine = None
         self._last_timestamps: dict[str, float] = {}  # "node_id:port_name" -> timestamp
-
-        # Son tick çıktılarını depolamak için
-        self._last_outputs: dict = {}
 
     def set_engine(self, engine) -> None:
         """Pipeline engine referansını ayarla."""
@@ -77,7 +70,7 @@ class PlotRefreshTimer(QObject):
 
     def stop(self) -> None:
         self._timer.stop()
-        self._last_outputs.clear()
+        self._last_timestamps.clear()
 
     def _refresh(self) -> None:
         """
@@ -132,4 +125,5 @@ class PlotRefreshTimer(QObject):
 
                 elif data_type == "detection_list":
                     # Onaylı tespitler
-                    self.confirmed_targets_ready.emit(envelope.payload, cf, sr)
+                    fft_size = int(envelope.metadata.get("fft_size", 0))
+                    self.confirmed_targets_ready.emit(envelope.payload, cf, sr, fft_size)

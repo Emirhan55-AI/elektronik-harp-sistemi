@@ -65,18 +65,30 @@ class SpectrumPlot(QWidget):
             name="CFAR Eşik",
         )
 
-        # 4. Tespit marker'ları (scatter plot)
+        # 4. Tespit Noktaları (Scatter - Ham)
         self._det_scatter = pg.ScatterPlotItem(
-            size=10,
-            symbol="d",  # Elmas
-            brush=pg.mkBrush(COLORS["plot_detection_marker"]),
+            size=6,
             pen=pg.mkPen(None),
+            brush=pg.mkBrush(COLORS["plot_detection_marker"]),
+            symbol="d",  # Diamond
         )
         self._plot_widget.addItem(self._det_scatter)
 
-        # 5. Marker (dikey çizgi — cursor)
+        # 4.5 Onaylı Tespit Noktaları (Scatter - Kararlı)
+        self._confirmed_scatter = pg.ScatterPlotItem(
+            size=12,
+            pen=pg.mkPen(COLORS["success"], width=2),
+            brush=pg.mkBrush(COLORS["bg_primary"]),
+            symbol="o",  # Circle
+            hoverable=True,
+            hoverSymbol="star",
+            hoverSize=16,
+        )
+        self._plot_widget.addItem(self._confirmed_scatter)
+
+        # 5. Özel imleç (Marker)
         self._marker = pg.InfiniteLine(
-            angle=90, movable=True,
+            pos=0, angle=90, movable=False,
             pen=pg.mkPen(COLORS["plot_marker"], width=1, style=pg.QtCore.Qt.PenStyle.DotLine),
         )
         self._plot_widget.addItem(self._marker)
@@ -159,15 +171,38 @@ class SpectrumPlot(QWidget):
 
         self._det_scatter.setData(freqs_mhz, powers)
 
+    def update_confirmed_targets(
+        self,
+        conf_array: np.ndarray,
+        center_freq: float = 0.0,
+        sample_rate: float = 1.0,
+        fft_size: int = 0,
+    ) -> None:
+        """
+        Onaylı (kararlı) hedefleri marker olarak göster.
+        """
+        if conf_array.size == 0:
+            self._confirmed_scatter.setData([], [])
+            return
+
+        freqs_hz = conf_array["center_freq_normalized"] * sample_rate + center_freq
+        freqs_mhz = freqs_hz / 1e6
+        powers = conf_array["power_db"]
+
+        self._confirmed_scatter.setData(freqs_mhz, powers)
+
     def reset(self) -> None:
         """Grafiği sıfırla."""
         self._curve.setData([], [])
         self._peak_curve.setData([], [])
         self._threshold_curve.setData([], [])
         self._det_scatter.setData([], [])
+        self._confirmed_scatter.setData([], [])
         self._peak_data = None
         self._freq_axis = None
         self._last_psd = None
+        self._cursor_label.setText("")
+        self._marker.setValue(0)
         self._plot_widget.autoRange()
 
     def _update_cursor(self) -> None:

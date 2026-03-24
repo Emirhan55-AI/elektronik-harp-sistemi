@@ -16,7 +16,7 @@ from typing import Any
 class NodeInstance:
     """Pipeline'daki tek bir node örneği."""
     instance_id: str                     # Benzersiz instance ID (UUID)
-    node_type_id: str                    # Adapter'ın node_id'si ("sdr_source")
+    node_type_id: str                    # Adapter'ın node_id'si ("sigmf_source")
     config: dict[str, Any] = field(default_factory=dict)
     position: tuple[float, float] = (0.0, 0.0)  # Canvas pozisyonu (UI için)
 
@@ -91,6 +91,11 @@ class PipelineGraph:
         target_port: str,
     ) -> Edge:
         """Yeni bağlantı ekle."""
+        if source_node_id not in self._nodes:
+            raise ValueError(f"Kaynak node bulunamadı: {source_node_id}")
+        if target_node_id not in self._nodes:
+            raise ValueError(f"Hedef node bulunamadı: {target_node_id}")
+
         # Aynı hedef porta birden fazla bağlantı olmamalı
         for e in self._edges:
             if e.target_node_id == target_node_id and e.target_port == target_port:
@@ -109,6 +114,21 @@ class PipelineGraph:
             self._edges.remove(edge)
         except ValueError:
             pass
+
+    def remove_edge_between(
+        self,
+        source_node_id: str,
+        source_port: str,
+        target_node_id: str,
+        target_port: str,
+    ) -> bool:
+        """Endpoint bilgisine göre edge sil."""
+        edge = Edge(source_node_id, source_port, target_node_id, target_port)
+        try:
+            self._edges.remove(edge)
+            return True
+        except ValueError:
+            return False
 
     def remove_edges_for_port(
         self,

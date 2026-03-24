@@ -11,7 +11,7 @@ Tek merkezi kontrol noktası:
 from __future__ import annotations
 
 import uuid
-from PySide6.QtCore import QObject, Signal, QPointF
+from PySide6.QtCore import QObject, Signal
 
 from ehcore.runtime import PipelineGraph, PipelineEngine, validate_pipeline
 from ehcore.runtime.validator import Severity
@@ -40,9 +40,13 @@ class AppController(QObject):
         self._worker = PipelineWorker(self)
         self._worker.state_changed.connect(self._on_state_change)
         self._worker.error_occurred.connect(self._on_engine_error)
+        self._worker.log_message.connect(self._forward_worker_log)
 
         # Plot refresh
         self._plot_timer = PlotRefreshTimer(interval_ms=50, parent=self)
+        self._plot_timer.confirmed_targets_ready.connect(self._log_new_targets)
+        
+        self._known_target_ids: set[int] = set()
 
     @property
     def graph(self) -> PipelineGraph:
@@ -60,7 +64,25 @@ class AppController(QObject):
         """Grafiği dışarıdan yükle (Persistence için)."""
         self.stop_pipeline()
         self._graph = graph
+        self._known_target_ids.clear()
         self.log_message.emit("Yeni proje yüklendi.", "info")
+
+    def _log_new_targets(self, conf_array, cf, sr, fft_size: int = 0) -> None:
+        """Yeni tespit edilen kararlı hedefleri terminale bas."""
+        if conf_array.size == 0:
+            return
+
+        for row in conf_array:
+            tid = int(row["target_id"])
+            if tid not in self._known_target_ids:
+                # Yeni hedef!
+                freq_hz = row["center_freq_normalized"] * sr + cf
+                freq_mhz = freq_hz / 1e6
+                power = row["power_db"]
+                snr = row["snr_db"]
+                msg = f"[TESPİT] Hedef #{tid} Kararlı Olarak İşaretlendi: {freq_mhz:.3f} MHz | Güç: {power:.1f} dB | SNR: {snr:.1f} dB"
+                self.log_message.emit(msg, "success")
+                self._known_target_ids.add(tid)
 
     # ── Node yönetimi ────────────────────────────────────────────
 
@@ -71,6 +93,9 @@ class AppController(QObject):
         config: dict | None = None,
     ) -> str | None:
         """Node ekle. Instance ID döner."""
+        if self._engine is not None:
+            self.stop_pipeline()
+
         descriptor = self._get_descriptor(node_type_id)
         if descriptor is None:
             self.log_message.emit(f"Bilinmeyen node tipi: {node_type_id}", "error")
@@ -91,6 +116,8 @@ class AppController(QObject):
         return instance_id
 
     def remove_node(self, instance_id: str) -> None:
+        if self._engine is not None:
+            self.stop_pipeline()
         self._graph.remove_node(instance_id)
 
     def update_node_config(self, instance_id: str, config: dict) -> None:
@@ -113,12 +140,23 @@ class AppController(QObject):
         src_node: str, src_port: str,
         tgt_node: str, tgt_port: str,
     ) -> bool:
+        if self._engine is not None:
+            self.stop_pipeline()
         try:
             self._graph.add_edge(src_node, src_port, tgt_node, tgt_port)
             return True
         except ValueError as e:
             self.log_message.emit(str(e), "warning")
             return False
+
+    def remove_edge(
+        self,
+        src_node: str, src_port: str,
+        tgt_node: str, tgt_port: str,
+    ) -> bool:
+        if self._engine is not None:
+            self.stop_pipeline()
+        return self._graph.remove_edge_between(src_node, src_port, tgt_node, tgt_port)
 
     # ── Pipeline kontrol ─────────────────────────────────────────
 
@@ -162,10 +200,15 @@ class AppController(QObject):
 
     def stop_pipeline(self) -> None:
         """Pipeline'ı durdur."""
+        was_running = self._engine is not None
         self._plot_timer.stop()
+        self._plot_timer.set_engine(None)
         if self._engine:
             self._engine.stop()
             self._engine = None
+        self._known_target_ids.clear()
+        if not was_running:
+            return
         self.pipeline_stopped.emit()
         self.log_message.emit("Pipeline durduruldu.", "info")
 
@@ -182,6 +225,9 @@ class AppController(QObject):
         if adapter_cls:
             return adapter_cls.descriptor
         return None
+
+    def _forward_worker_log(self, message: str, level: str) -> None:
+        self.log_message.emit(message, level)
 
     def _on_state_change(self, state: str) -> None:
         if state == "error":

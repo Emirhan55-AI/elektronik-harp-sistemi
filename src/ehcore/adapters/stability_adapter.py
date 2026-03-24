@@ -174,6 +174,7 @@ class StabilityFilterAdapter(BaseAdapter):
             data_type="detection_list",
             payload=confirmed_array,
             metadata={
+                **det_envelope.metadata,
                 "confirmed_count": len(confirmed),
                 "active_tracks": self._tracker.active_tracks,
                 "sample_rate": det_envelope.sample_rate,

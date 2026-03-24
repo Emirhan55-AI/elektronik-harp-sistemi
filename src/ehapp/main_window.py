@@ -24,15 +24,13 @@ Yapı:
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QPointF
-from PySide6.QtGui import QAction, QKeySequence, QIcon
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QMainWindow, QTabWidget, QWidget, QSplitter,
-    QVBoxLayout, QHBoxLayout, QToolBar, QStatusBar,
-    QFileDialog, QMessageBox, QStyle, QPushButton,
+    QMainWindow, QWidget, QToolBar, QStatusBar,
+    QFileDialog, QMessageBox, QPushButton,
     QDockWidget
 )
 
@@ -100,9 +98,6 @@ class MainWindow(QMainWindow):
         self._log_panel.log_info(
             f"Kayıtlı node sayısı: {len(NodeRegistry.get_all_descriptors())}"
         )
-        
-        # Test edebilmek için temel blok tasarımı yükle
-        self._create_default_flow()
 
     # ── Menü ─────────────────────────────────────────────────────
 
@@ -147,10 +142,14 @@ class MainWindow(QMainWindow):
 
         # Görünüm (Arayüz Panelleri)
         view_menu = menubar.addMenu("Görünüm")
-        # create_central ile önceden dock olarak oluşturduğumuz elemanlara erişebiliyoruz:
-        view_menu.addAction(self.findChild(QDockWidget, "Blok Paleti").toggleViewAction())
-        view_menu.addAction(self.findChild(QDockWidget, "Özellikler").toggleViewAction())
-        view_menu.addAction(self.findChild(QDockWidget, "Terminal").toggleViewAction())
+        view_menu.addAction(self._palette_dock.toggleViewAction())
+        view_menu.addAction(self._properties_dock.toggleViewAction())
+        view_menu.addAction(self._log_dock.toggleViewAction())
+        view_menu.addSeparator()
+        view_menu.addAction(self._spectrum_dock.toggleViewAction())
+        view_menu.addAction(self._waterfall_dock.toggleViewAction())
+        view_menu.addAction(self._iq_dock.toggleViewAction())
+        view_menu.addAction(self._detections_dock.toggleViewAction())
 
     # ── Toolbar ──────────────────────────────────────────────────
 
@@ -190,11 +189,11 @@ class MainWindow(QMainWindow):
 
         # ── Palette (Sol Panel) ──
         self._palette = BlockPalette()
-        palette_dock = QDockWidget("Blok Paleti", self)
-        palette_dock.setObjectName("Blok Paleti")
-        palette_dock.setWidget(self._palette)
-        palette_dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, palette_dock)
+        self._palette_dock = QDockWidget("Blok Paleti", self)
+        self._palette_dock.setObjectName("Blok Paleti")
+        self._palette_dock.setWidget(self._palette)
+        self._palette_dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._palette_dock)
 
         # ── Özellikler (Sağ Panel - Başlangıçta Gizli) ──
         self._properties = PropertiesPanel()
@@ -207,10 +206,10 @@ class MainWindow(QMainWindow):
 
         # ── Log / Terminal (Alt Panel) ──
         self._log_panel = LogPanel()
-        log_dock = QDockWidget("Terminal", self)
-        log_dock.setObjectName("Terminal")
-        log_dock.setWidget(self._log_panel)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, log_dock)
+        self._log_dock = QDockWidget("Terminal", self)
+        self._log_dock.setObjectName("Terminal")
+        self._log_dock.setWidget(self._log_panel)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self._log_dock)
 
         # ── Grafikler (Tabbed Docking) ──
         self._spectrum_plot = SpectrumPlot()
@@ -248,7 +247,6 @@ class MainWindow(QMainWindow):
     def _create_status_bar(self) -> None:
         status = QStatusBar()
         self.setStatusBar(status)
-        self._status_label = status
         status.showMessage(tr.STATUS_READY)
 
     # ── Sinyal Bağlantıları ──────────────────────────────────────
@@ -264,6 +262,8 @@ class MainWindow(QMainWindow):
         # NOT: node_selected artık properties açmıyor — sadece çift tık açar
         self._scene.node_double_clicked.connect(self._on_node_selected)
         self._scene.edge_added.connect(self._on_edge_added)
+        self._scene.edge_removed.connect(self._on_edge_removed)
+        self._scene.node_removed.connect(self._on_node_removed)
 
         # Sağ tık menüden blok ekleme
         self._scene.context_add_requested.connect(self._on_block_add_at_pos)
@@ -279,6 +279,7 @@ class MainWindow(QMainWindow):
         timer.threshold_data_ready.connect(self._spectrum_plot.update_threshold)
         timer.cfar_detections_ready.connect(self._spectrum_plot.update_detections)
         timer.confirmed_targets_ready.connect(self._detections_table.update_confirmed_targets)
+        timer.confirmed_targets_ready.connect(self._spectrum_plot.update_confirmed_targets)
 
         # Detections → spectrum marker
         self._detections_table.detection_selected.connect(
@@ -294,7 +295,6 @@ class MainWindow(QMainWindow):
 
     def _on_block_add_at_pos(self, node_type_id: str, pos) -> None:
         """Blok ekleme — belirtilen pozisyona."""
-        from PySide6.QtCore import QPointF
         if not isinstance(pos, QPointF):
             pos = QPointF(float(pos.x()), float(pos.y()))
 
@@ -337,7 +337,21 @@ class MainWindow(QMainWindow):
         tgt_node: str, tgt_port: str,
     ) -> None:
         """Canvas'ta edge eklenince runtime graph'a da ekle."""
-        self._controller.add_edge(src_node, src_port, tgt_node, tgt_port)
+        if not self._controller.add_edge(src_node, src_port, tgt_node, tgt_port):
+            self._scene.remove_edge_between(
+                src_node, src_port,
+                tgt_node, tgt_port,
+                emit_signal=False,
+            )
+
+    def _on_edge_removed(
+        self, src_node: str, src_port: str,
+        tgt_node: str, tgt_port: str,
+    ) -> None:
+        self._controller.remove_edge(src_node, src_port, tgt_node, tgt_port)
+
+    def _on_node_removed(self, instance_id: str) -> None:
+        self._controller.remove_node(instance_id)
 
     def _on_config_changed(self, instance_id: str, config: dict) -> None:
         """Properties panel'den config değişikliği."""
@@ -349,10 +363,6 @@ class MainWindow(QMainWindow):
 
     def _on_log(self, message: str, level: str) -> None:
         self._log_panel.log(message, level)
-
-    def _create_default_flow(self) -> None:
-        """Kullanıcının test edebilmesi için varsayılan bir pipeline dizilimi oluşturur."""
-        pass  # Yeni yapı için boş tuval
 
     # ── Pipeline kontrol ─────────────────────────────────────────
 
@@ -380,11 +390,6 @@ class MainWindow(QMainWindow):
 
     def _reset_pipeline(self) -> None:
         self._new_project()
-        self._spectrum_plot.reset()
-        self._waterfall_plot.reset()
-        self._iq_plot.reset()
-        self._detections_table.clear_detections()
-        self.statusBar().showMessage(tr.STATUS_READY)
 
     def _on_pipeline_started(self) -> None:
         self._run_btn.setText(f"⏹ {tr.TOOLBAR_STOP}")
@@ -403,7 +408,7 @@ class MainWindow(QMainWindow):
         self._waterfall_dock.raise_()
 
         # Edge glow efektini ve Flow animasyonunu başlat
-        for edge_item in self._scene._edges:
+        for edge_item in self._scene.edge_items:
             # Type checker yardımı
             if hasattr(edge_item, "set_state"):
                 getattr(edge_item, "set_state")("running")
@@ -418,25 +423,64 @@ class MainWindow(QMainWindow):
             node_item.set_state("idle")
 
         # Edge glow ve animasyonunu durdur
-        for edge_item in self._scene._edges:
+        for edge_item in self._scene.edge_items:
             if hasattr(edge_item, "set_state"):
                 getattr(edge_item, "set_state")("idle")
 
     def _on_pipeline_error(self, msg: str) -> None:
-        self.statusBar().showMessage(tr.STATUS_ERROR)
+        self.statusBar().showMessage(f"{tr.STATUS_ERROR}: {msg}", 10000)
+
+    def _reset_visualizations(self) -> None:
+        self._spectrum_plot.reset()
+        self._waterfall_plot.reset()
+        self._iq_plot.reset()
+        self._detections_table.clear_detections()
+        self.statusBar().showMessage(tr.STATUS_READY)
+
+    def _clear_workspace_view(self) -> None:
+        self._properties.clear_selection()
+        self._reset_visualizations()
+        self._properties_dock.hide()
+        self._spectrum_dock.hide()
+        self._waterfall_dock.hide()
+        self._iq_dock.hide()
+        self._detections_dock.hide()
+
+    def _collect_workspace(self) -> dict:
+        return {
+            "dock_visibility": {
+                "palette": self._palette_dock.isVisible(),
+                "properties": self._properties_dock.isVisible(),
+                "log": self._log_dock.isVisible(),
+                "spectrum": self._spectrum_dock.isVisible(),
+                "waterfall": self._waterfall_dock.isVisible(),
+                "iq": self._iq_dock.isVisible(),
+                "detections": self._detections_dock.isVisible(),
+            },
+        }
+
+    def _apply_workspace(self, workspace: dict) -> None:
+        dock_visibility = workspace.get("dock_visibility", {})
+        dock_map = {
+            "palette": self._palette_dock,
+            "properties": self._properties_dock,
+            "log": self._log_dock,
+            "spectrum": self._spectrum_dock,
+            "waterfall": self._waterfall_dock,
+            "iq": self._iq_dock,
+            "detections": self._detections_dock,
+        }
+        for key, dock in dock_map.items():
+            visible = dock_visibility.get(key)
+            if visible is not None:
+                dock.setVisible(bool(visible))
 
     # ── Dosya İşlemleri ──────────────────────────────────────────
 
     def _new_project(self) -> None:
         self._controller.reset_all()
         self._scene.clear_all()
-        self._properties.clear_selection()
-        if hasattr(self, "_properties_dock"):
-            self._properties_dock.hide()
-            self._spectrum_dock.hide()
-            self._waterfall_dock.hide()
-            self._iq_dock.hide()
-            self._detections_dock.hide()
+        self._clear_workspace_view()
         self._current_file = None
         self.setWindowTitle(tr.APP_FULL_TITLE)
         self._log_panel.log_info("Yeni proje oluşturuldu.")
@@ -457,6 +501,7 @@ class MainWindow(QMainWindow):
         # Temizle
         self._controller.reset_all()
         self._scene.clear_all()
+        self._clear_workspace_view()
 
         # Controller graph'ını güncelle
         self._controller.set_graph(graph)
@@ -477,8 +522,10 @@ class MainWindow(QMainWindow):
             self._scene.add_edge_between(
                 edge.source_node_id, edge.source_port,
                 edge.target_node_id, edge.target_port,
+                emit_signal=False,
             )
 
+        self._apply_workspace(workspace)
         self._current_file = str(filepath)
         self.setWindowTitle(f"{tr.APP_TITLE} — {Path(filepath).name}")
         self._log_panel.log_success(f"Proje yüklendi: {filepath}")
@@ -507,7 +554,7 @@ class MainWindow(QMainWindow):
             save_project(
                 filepath,
                 self._controller.graph,
-                {"active_tab": 0},
+                self._collect_workspace(),
             )
             self._current_file = filepath
             self.setWindowTitle(f"{tr.APP_TITLE} — {Path(filepath).name}")

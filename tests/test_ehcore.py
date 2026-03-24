@@ -165,7 +165,7 @@ class TestAdapters:
         fft.configure({"fft_size": 1024})
         result = fft.process({"iq_in": iq_env})
         assert "fft_out" in result
-        assert "waterfall_out" in result
+        assert result["fft_out"].metadata["fft_size"] == 1024
 
 # ═══════════════════════════════════════════════════════════════════
 # IO
@@ -232,6 +232,16 @@ class TestGraph:
         assert len(g2) == 2
         assert len(g2.edges) == 1
 
+    def test_remove_edge_between(self):
+        from ehcore.runtime.graph import PipelineGraph
+        g = PipelineGraph()
+        g.add_node("sigmf_source", instance_id="src1")
+        g.add_node("stft_processor", instance_id="fft1")
+        g.add_edge("src1", "iq_out", "fft1", "iq_in")
+
+        assert g.remove_edge_between("src1", "iq_out", "fft1", "iq_in") is True
+        assert len(g.edges) == 0
+
 
 class TestScheduler:
     def test_topological_sort(self):
@@ -285,14 +295,27 @@ class TestPersistence:
         from ehapp.persistence.project_io import save_project, load_project
 
         g = PipelineGraph()
-        g.add_node("sdr_source", instance_id="src1", config={"block_size": 512})
-        g.add_node("fft_processor", instance_id="fft1")
+        g.add_node("sigmf_source", instance_id="src1", config={"block_size": 512})
+        g.add_node("stft_processor", instance_id="fft1")
         g.add_edge("src1", "iq_out", "fft1", "iq_in")
 
         filepath = tmp_path / "test.ehproj"
-        save_project(filepath, g, {"active_tab": 1})
+        save_project(filepath, g, {"dock_visibility": {"spectrum": True}})
 
         g2, ws = load_project(filepath)
         assert len(g2) == 2
         assert len(g2.edges) == 1
-        assert ws["active_tab"] == 1
+        assert ws["dock_visibility"]["spectrum"] is True
+
+    def test_load_rejects_unknown_version(self, tmp_path):
+        import json
+        from ehapp.persistence.project_io import load_project
+
+        filepath = tmp_path / "bad.ehproj"
+        filepath.write_text(
+            json.dumps({"version": "999.0", "graph": {"nodes": [], "edges": []}}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError):
+            load_project(filepath)
