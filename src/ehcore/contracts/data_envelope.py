@@ -24,8 +24,10 @@ import numpy as np
 VALID_DATA_TYPES = frozenset({
     "iq_block",
     "fft_frame",
+    "spectrogram",
     "waterfall_row",
     "detections",
+    "detection_list",
 })
 
 

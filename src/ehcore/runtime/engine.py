@@ -52,8 +52,12 @@ class PipelineEngine:
         self._execution_order: list[str] = []
         self._state: str = "idle"
 
+        # Arka plan execution
         self._thread: threading.Thread | None = None
         self._running = threading.Event()
+
+        # Son iterasyonun çıktılarını tutar (UI güncellemesi için)
+        self.last_outputs: dict[str, dict[str, DataEnvelope]] = {}
 
     # ── Yaşam Döngüsü ───────────────────────────────────────────
 
@@ -110,6 +114,8 @@ class PipelineEngine:
         if self._thread is not None:
             self._thread.join(timeout=3.0)
             self._thread = None
+        
+        self.last_outputs = {} # Eski verileri temizle
 
         # Adapter'ları durdur
         for adapter in self._adapters.values():
@@ -187,11 +193,21 @@ class PipelineEngine:
                 if self._on_error:
                     self._on_error(node_id, error_msg)
 
+        # UI'nin çekebilmesi için son çıktıyı kaydet
+        # Thread-safe copy for UI access
+        self.last_outputs = copy.copy(outputs)
+
     def _set_state(self, new_state: str) -> None:
         """State değişikliğini bildir."""
         self._state = new_state
         if self._on_state_change:
             self._on_state_change(new_state)
+
+    def update_node_config(self, instance_id: str, new_config: dict) -> None:
+        """Çalışmakta olan bir adapter'ın ayarlarını güncelle (properties panel)."""
+        adapter = self._adapters.get(instance_id)
+        if adapter is not None:
+            adapter.configure(new_config)
 
     # ── Tek adım çalıştırma (test amaçlı) ───────────────────────
 

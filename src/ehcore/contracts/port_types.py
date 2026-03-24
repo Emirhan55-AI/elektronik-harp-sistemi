@@ -13,22 +13,26 @@ from enum import Enum, auto
 
 class PortType(Enum):
     """Node port veri tipleri."""
-    IQ = auto()          # Ham IQ verisi (complex)
-    FFT = auto()         # FFT çerçevesi (float, dB)
-    WATERFALL = auto()   # Waterfall satırı
-    DETECTIONS = auto()  # Tespit listesi
-    ANY = auto()         # Herhangi bir tip kabul eder
+    IQ = auto()              # Ham IQ verisi (complex)
+    FFT = auto()             # FFT çerçevesi (float, dB) — tek satır PSD
+    SPECTROGRAM = auto()     # 2D zaman-frekans matrisi (STFT çıkışı)
+    WATERFALL = auto()       # Waterfall satırı
+    DETECTIONS = auto()      # Ham tespit listesi (CFAR çıkışı)
+    DETECTION_LIST = auto()  # Onaylı tespit paketi (Kararlılık Filtresi çıkışı)
+    ANY = auto()             # Herhangi bir tip kabul eder
 
     def display_name(self) -> str:
         """Türkçe görünen ad."""
         _names = {
             PortType.IQ: "IQ",
             PortType.FFT: "FFT",
+            PortType.SPECTROGRAM: "Spektrogram",
             PortType.WATERFALL: "Waterfall",
-            PortType.DETECTIONS: "Tespitler",
+            PortType.DETECTIONS: "Ham Tespitler",
+            PortType.DETECTION_LIST: "Onaylı Tespitler",
             PortType.ANY: "Genel",
         }
-        return _names.get(self, self.name)
+        return _names.get(self, str(self.name))
 
 
 # ── Uyumluluk Matrisi ──────────────────────────────────────────
@@ -36,13 +40,16 @@ class PortType(Enum):
 # ANY her şeyi kabul eder; spesifik tipler eşleşmeli.
 
 _COMPATIBILITY: dict[PortType, frozenset[PortType]] = {
-    PortType.IQ:         frozenset({PortType.IQ, PortType.ANY}),
-    PortType.FFT:        frozenset({PortType.FFT, PortType.ANY}),
-    PortType.WATERFALL:  frozenset({PortType.WATERFALL, PortType.ANY}),
-    PortType.DETECTIONS: frozenset({PortType.DETECTIONS, PortType.ANY}),
-    PortType.ANY:        frozenset({
-        PortType.IQ, PortType.FFT, PortType.WATERFALL,
-        PortType.DETECTIONS, PortType.ANY,
+    PortType.IQ:             frozenset({PortType.IQ, PortType.ANY}),
+    PortType.FFT:            frozenset({PortType.FFT, PortType.ANY}),
+    PortType.SPECTROGRAM:    frozenset({PortType.SPECTROGRAM, PortType.ANY}),
+    PortType.WATERFALL:      frozenset({PortType.WATERFALL, PortType.ANY}),
+    PortType.DETECTIONS:     frozenset({PortType.DETECTIONS, PortType.ANY}),
+    PortType.DETECTION_LIST: frozenset({PortType.DETECTION_LIST, PortType.ANY}),
+    PortType.ANY:            frozenset({
+        PortType.IQ, PortType.FFT, PortType.SPECTROGRAM,
+        PortType.WATERFALL, PortType.DETECTIONS,
+        PortType.DETECTION_LIST, PortType.ANY,
     }),
 }
 

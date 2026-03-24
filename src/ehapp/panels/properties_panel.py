@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox,
     QScrollArea, QFrame, QPushButton, QFormLayout,
+    QCheckBox, QFileDialog
 )
 
 from ehapp.theme.tokens import COLORS, FONTS, SIZES
@@ -152,7 +153,32 @@ class PropertiesPanel(QWidget):
                 widget.setRange(-2**30, 2**30)
                 widget.setValue(int(current) if current else 0)
 
-            else:
+            elif field_type == "bool":
+                widget = QCheckBox()
+                if current is not None:
+                    widget.setChecked(bool(current))
+                elif default is not None:
+                    widget.setChecked(bool(default))
+
+            elif field_type == "file":
+                widget = QWidget()
+                h_layout = QHBoxLayout(widget)
+                h_layout.setContentsMargins(0, 0, 0, 0)
+                
+                line_edit = QLineEdit()
+                line_edit.setText(str(current) if current else "")
+                
+                btn = QPushButton("Gözat...")
+                # btn.clicked.connect(...) closure issues in loop, so we bind line_edit
+                btn.clicked.connect(lambda _, le=line_edit: le.setText(
+                    QFileDialog.getOpenFileName(widget, "Dosya Seç", "", "All Files (*)")[0] or le.text()
+                ))
+                
+                h_layout.addWidget(line_edit)
+                h_layout.addWidget(btn)
+                widget.line_edit = line_edit # referans tutalım
+
+            else:  # 'str' vs.
                 widget = QLineEdit()
                 widget.setText(str(current) if current else "")
 
@@ -182,7 +208,11 @@ class PropertiesPanel(QWidget):
                 config[key] = widget.value()
             elif isinstance(widget, QSpinBox):
                 config[key] = widget.value()
+            elif isinstance(widget, QCheckBox):
+                config[key] = widget.isChecked()
             elif isinstance(widget, QLineEdit):
                 config[key] = widget.text()
+            elif hasattr(widget, "line_edit"):  # dosya seçici container widget
+                config[key] = widget.line_edit.text()
 
         self.config_changed.emit(self._current_node_id, config)

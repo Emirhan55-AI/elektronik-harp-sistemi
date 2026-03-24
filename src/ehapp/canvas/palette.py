@@ -88,6 +88,10 @@ class BlockPalette(QWidget):
         # Kategori ikonları (Modern Text Unicode)
         ICON_MAP = {
             "Kaynaklar": "📡",
+            "Ön İşleme": "🔬",
+            "Tespit": "🎯",
+            "Sınıflandırma": "🧬",
+            "İzleme": "📍",
             "Görüntüleyiciler": "🖥️",
             "İşleyiciler": "⚙️",
             "Matematik": "🧮",

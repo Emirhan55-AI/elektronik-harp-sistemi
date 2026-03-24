@@ -1,11 +1,10 @@
 {
+    "include": [
+        "src"
+    ],
     "executionEnvironments": [
         {
             "root": "src"
         }
-    ],
-    "extraPaths": [
-        "src",
-        "C:\\Users\\emirhan55\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages"
     ]
 }

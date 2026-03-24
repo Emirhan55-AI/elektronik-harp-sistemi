@@ -56,6 +56,12 @@ class AppController(QObject):
     def plot_timer(self) -> PlotRefreshTimer:
         return self._plot_timer
 
+    def set_graph(self, graph: PipelineGraph) -> None:
+        """Grafiği dışarıdan yükle (Persistence için)."""
+        self.stop_pipeline()
+        self._graph = graph
+        self.log_message.emit("Yeni proje yüklendi.", "info")
+
     # ── Node yönetimi ────────────────────────────────────────────
 
     def add_node(
@@ -91,6 +97,8 @@ class AppController(QObject):
         node = self._graph.get_node(instance_id)
         if node:
             node.config.update(config)
+            if self._engine is not None:
+                self._engine.update_node_config(instance_id, config)
             self.log_message.emit("Node ayarları güncellendi.", "info")
 
     def update_node_position(self, instance_id: str, x: float, y: float) -> None:
@@ -164,6 +172,7 @@ class AppController(QObject):
     def reset_all(self) -> None:
         """Tam sıfırlama."""
         self.stop_pipeline()
+        self._graph = PipelineGraph()
         self.log_message.emit("Çalışma alanı sıfırlandı.", "info")
 
     # ── Yardımcılar ──────────────────────────────────────────────

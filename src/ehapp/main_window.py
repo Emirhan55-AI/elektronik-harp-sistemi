@@ -276,6 +276,9 @@ class MainWindow(QMainWindow):
         timer.fft_data_ready.connect(self._spectrum_plot.update_data)
         timer.waterfall_data_ready.connect(self._waterfall_plot.update_data)
         timer.iq_data_ready.connect(self._iq_plot.update_data)
+        timer.threshold_data_ready.connect(self._spectrum_plot.update_threshold)
+        timer.cfar_detections_ready.connect(self._spectrum_plot.update_detections)
+        timer.confirmed_targets_ready.connect(self._detections_table.update_confirmed_targets)
 
         # Detections → spectrum marker
         self._detections_table.detection_selected.connect(
@@ -325,15 +328,9 @@ class MainWindow(QMainWindow):
                 instance_id, adapter_cls.descriptor, node.config
             )
 
-            # Görüntüleyici ise Pop-upları aç
-            if node.node_type_id == "spectrum_viewer":
-                self._spectrum_dock.show()
-                self._spectrum_dock.raise_()
-                self._waterfall_dock.show()
-                self._waterfall_dock.raise_()
-            elif node.node_type_id == "sdr_source":
-                self._iq_dock.show()
-                self._iq_dock.raise_()
+            # Görüntüleyici panellerini aç (genel)
+            self._spectrum_dock.show()
+            self._spectrum_dock.raise_()
 
     def _on_edge_added(
         self, src_node: str, src_port: str,
@@ -355,23 +352,7 @@ class MainWindow(QMainWindow):
 
     def _create_default_flow(self) -> None:
         """Kullanıcının test edebilmesi için varsayılan bir pipeline dizilimi oluşturur."""
-        source_id = self._controller.add_node("sdr_source", position=(50, 200))
-        fft_id = self._controller.add_node("fft_processor", position=(350, 200))
-        sink_id = self._controller.add_node("spectrum_viewer", position=(650, 200))
-        
-        if source_id and fft_id and sink_id:
-            s_desc = NodeRegistry.get_adapter_class("sdr_source").descriptor
-            f_desc = NodeRegistry.get_adapter_class("fft_processor").descriptor
-            v_desc = NodeRegistry.get_adapter_class("spectrum_viewer").descriptor
-            
-            self._scene.add_node(source_id, s_desc, position=QPointF(50, 200), config=s_desc.default_config())
-            self._scene.add_node(fft_id, f_desc, position=QPointF(350, 200), config=f_desc.default_config())
-            self._scene.add_node(sink_id, v_desc, position=QPointF(650, 200), config=v_desc.default_config())
-            
-            # Aralarındaki bağlantılar
-            self._scene.add_edge_between(source_id, "iq_out", fft_id, "iq_in")
-            self._scene.add_edge_between(fft_id, "fft_out", sink_id, "fft_in")
-            self._scene.add_edge_between(fft_id, "waterfall_out", sink_id, "waterfall_in")
+        pass  # Yeni yapı için boş tuval
 
     # ── Pipeline kontrol ─────────────────────────────────────────
 
@@ -414,21 +395,18 @@ class MainWindow(QMainWindow):
         # Node state indicator'larını güncelle ve görüntüleyicileri fırlat
         for nid, node_item in self._scene.node_items.items():
             node_item.set_state("running")
-            node = self._controller.graph.get_node(nid)
-            if node:
-                if node.node_type_id == "spectrum_viewer":
-                    self._spectrum_dock.show()
-                    self._spectrum_dock.raise_()
-                    self._waterfall_dock.show()
-                    self._waterfall_dock.raise_()
-                elif node.node_type_id == "sdr_source":
-                    self._iq_dock.show()
-                    self._iq_dock.raise_()
+
+        # Grafik panellerini aç
+        self._spectrum_dock.show()
+        self._spectrum_dock.raise_()
+        self._waterfall_dock.show()
+        self._waterfall_dock.raise_()
 
         # Edge glow efektini ve Flow animasyonunu başlat
         for edge_item in self._scene._edges:
+            # Type checker yardımı
             if hasattr(edge_item, "set_state"):
-                edge_item.set_state("running")
+                getattr(edge_item, "set_state")("running")
 
     def _on_pipeline_stopped(self) -> None:
         self._run_btn.setText(f"▶ {tr.TOOLBAR_RUN}")
@@ -442,7 +420,7 @@ class MainWindow(QMainWindow):
         # Edge glow ve animasyonunu durdur
         for edge_item in self._scene._edges:
             if hasattr(edge_item, "set_state"):
-                edge_item.set_state("idle")
+                getattr(edge_item, "set_state")("idle")
 
     def _on_pipeline_error(self, msg: str) -> None:
         self.statusBar().showMessage(tr.STATUS_ERROR)
@@ -481,7 +459,7 @@ class MainWindow(QMainWindow):
         self._scene.clear_all()
 
         # Controller graph'ını güncelle
-        self._controller._graph = graph
+        self._controller.set_graph(graph)
 
         # Canvas'a node'ları ekle
         for node in graph.nodes:

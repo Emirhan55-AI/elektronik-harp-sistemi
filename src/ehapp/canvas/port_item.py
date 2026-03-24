@@ -47,7 +47,7 @@ class PortItem(QGraphicsEllipseItem):
         self.setAcceptHoverEvents(True)
         self.setToolTip(f"{port_def.display_name} ({port_def.port_type.name})")
         self.setZValue(2)
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges)
+        # Portlar node ile birlikte hareket ettiği için kendi itemChange'lerine gerek yok
 
     @property
     def center_scene_pos(self) -> QPointF:
@@ -81,11 +81,3 @@ class PortItem(QGraphicsEllipseItem):
         self.setBrush(QBrush(self._color))
         self.setPen(QPen(self._color.darker(120), 1.5))
         super().hoverLeaveEvent(event)
-
-    # ── Pozisyon değişikliğinde edge'leri güncelle ───────────────
-
-    def itemChange(self, change, value):
-        if change == QGraphicsItem.GraphicsItemChange.ItemScenePositionHasChanged:
-            for edge in self._edges:
-                edge.update_path()
-        return super().itemChange(change, value)

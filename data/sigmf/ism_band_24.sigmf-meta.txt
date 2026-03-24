@@ -1,0 +1,21 @@
+{
+  "global": {
+    "antenna:gain": 50,
+    "antenna:type": "whip",
+    "core:version": "1.0.0",
+    "core:datatype": "ci16_le",
+    "core:description": "2.4 GHz ISM band example",
+    "core:sample_rate": 56000000,
+    "core:author": "Marc Lichtman",
+    "core:recorder": "GNU Radio",
+    "core:hw": "USRP B210",
+    "core:license": "CC BY-SA"
+  },
+    "captures": [
+        {
+            "core:sample_start": 0,
+            "core:frequency": 2430000000
+        }
+    ],
+    "annotations": []
+}

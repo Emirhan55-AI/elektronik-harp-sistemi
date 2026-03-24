@@ -135,7 +135,7 @@ class NodeEditorScene(QGraphicsScene):
                 self.remove_edge(edge)
 
         self.removeItem(node)
-        del self._nodes[instance_id]
+        self._nodes.pop(instance_id, None)
         self.node_removed.emit(instance_id)
 
     def get_node(self, instance_id: str) -> NodeItem | None:

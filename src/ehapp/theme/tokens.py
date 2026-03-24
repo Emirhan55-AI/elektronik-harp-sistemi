@@ -47,11 +47,17 @@ COLORS = {
     "edge_default":     "#4488aa",       # Bağlantı çizgisi
     "edge_active":      "#00d4aa",       # Aktif/seçili bağlantı
     "edge_preview":     "#ffffff80",     # Çizim sırasında preview
-    "port_iq":          "#ff6688",       # IQ port rengi
-    "port_fft":         "#66aaff",       # FFT port rengi
-    "port_waterfall":   "#ffaa44",       # Waterfall port rengi
-    "port_detections":  "#aa66ff",       # Tespit port rengi
-    "port_any":         "#aabbcc",       # Genel port rengi
+    "port_iq":              "#ff6688",       # IQ port rengi
+    "port_fft":             "#66aaff",       # FFT port rengi
+    "port_spectrogram":     "#44ddff",       # Spektrogram port rengi
+    "port_waterfall":       "#ffaa44",       # Waterfall port rengi
+    "port_detections":      "#aa66ff",       # Ham tespit port rengi
+    "port_detection_list":  "#ff44aa",       # Onaylı tespit port rengi
+    "port_any":             "#aabbcc",       # Genel port rengi
+
+    # CFAR overlay
+    "plot_threshold":       "#ff4466",       # CFAR eşik eğrisi rengi
+    "plot_detection_marker": "#ffee00",      # Tespit marker rengi
 
     # Grafik renkleri
     "plot_bg":          "#0a0e14",       # Grafik arka planı
@@ -78,11 +84,13 @@ COLORS = {
 # ── Port tipi → renk eşlemesi ─────────────────────────────────────
 
 PORT_COLORS = {
-    "IQ":         COLORS["port_iq"],
-    "FFT":        COLORS["port_fft"],
-    "WATERFALL":  COLORS["port_waterfall"],
-    "DETECTIONS": COLORS["port_detections"],
-    "ANY":        COLORS["port_any"],
+    "IQ":             COLORS["port_iq"],
+    "FFT":            COLORS["port_fft"],
+    "SPECTROGRAM":    COLORS["port_spectrogram"],
+    "WATERFALL":      COLORS["port_waterfall"],
+    "DETECTIONS":     COLORS["port_detections"],
+    "DETECTION_LIST": COLORS["port_detection_list"],
+    "ANY":            COLORS["port_any"],
 }
 
 # ── Fontlar ──────────────────────────────────────────────────────
