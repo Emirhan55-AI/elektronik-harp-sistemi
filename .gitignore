@@ -31,3 +31,6 @@ Thumbs.db
 # Project
 *.ehproj
 data/
+
+# Environment
+.env

@@ -369,23 +369,27 @@ class NodeEditorScene(QGraphicsScene):
             node = item.parentItem()
 
         if node is not None and isinstance(node, NodeItem):
-            act_props = menu.addAction(tr.CTX_PROPERTIES)
-            act_disconnect = menu.addAction(tr.CTX_DISCONNECT)
-            menu.addSeparator()
-            act_delete = menu.addAction(tr.CTX_DELETE)
+            self._handle_node_context_menu(menu, node, event)
+        else:
+            self._handle_scene_context_menu(menu, pos, event)
 
-            chosen = menu.exec(event.screenPos())
-            if chosen == act_props:
-                self.node_double_clicked.emit(node.instance_id)
-            elif chosen == act_disconnect:
-                for port in node.input_ports + node.output_ports:
-                    for edge in list(port.connected_edges):
-                        self.remove_edge(edge)
-            elif chosen == act_delete:
-                self.remove_node(node.instance_id)
-            return
+    def _handle_node_context_menu(self, menu: QMenu, node: NodeItem, event) -> None:
+        act_props = menu.addAction(tr.CTX_PROPERTIES)
+        act_disconnect = menu.addAction(tr.CTX_DISCONNECT)
+        menu.addSeparator()
+        act_delete = menu.addAction(tr.CTX_DELETE)
 
-        # Boş alana tıklandıysa → genel menü
+        chosen = menu.exec(event.screenPos())
+        if chosen == act_props:
+            self.node_double_clicked.emit(node.instance_id)
+        elif chosen == act_disconnect:
+            for port in node.input_ports + node.output_ports:
+                for edge in list(port.connected_edges):
+                    self.remove_edge(edge)
+        elif chosen == act_delete:
+            self.remove_node(node.instance_id)
+
+    def _handle_scene_context_menu(self, menu: QMenu, pos: QPointF, event) -> None:
         add_menu = menu.addMenu(tr.CTX_ADD_BLOCK)
         categories = NodeRegistry.get_categories()
         type_actions = {}
@@ -403,7 +407,6 @@ class NodeEditorScene(QGraphicsScene):
         chosen = menu.exec(event.screenPos())
         if chosen in type_actions:
             node_type_id, drop_pos = type_actions[chosen]
-            # Sinyal ile üst katmana bildir (aynı _on_block_add gibi)
             self._context_add_pos = drop_pos
             self.context_add_requested.emit(node_type_id, drop_pos)
         elif chosen == act_select_all:

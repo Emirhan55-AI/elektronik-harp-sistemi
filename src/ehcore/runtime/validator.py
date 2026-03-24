@@ -46,27 +46,15 @@ class ValidationError(Exception):
         )
 
 
-def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
-    """
-    Pipeline'ı doğrula ve mesajları döndür.
-
-    Returns:
-        Doğrulama mesajları listesi (ERROR ve WARNING).
-
-    Raises:
-        ValidationError: Kritik hatalar varsa (caller'ın tercihi).
-    """
-    messages: list[ValidationMessage] = []
-
+def _check_basic_topology(graph: PipelineGraph, messages: list[ValidationMessage]) -> bool:
     if len(graph) == 0:
         messages.append(ValidationMessage(
             severity=Severity.ERROR,
             node_id="",
             message="Pipeline boş — en az bir node ekleyin.",
         ))
-        return messages
+        return False
 
-    # 1. Kaynak node kontrolü
     sources = graph.get_source_nodes()
     if not sources:
         messages.append(ValidationMessage(
@@ -75,7 +63,6 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
             message="Pipeline'da kaynak (source) node bulunamadı.",
         ))
 
-    # 2. Sink/viewer uyarısı
     sinks = graph.get_sink_nodes()
     if not sinks:
         messages.append(ValidationMessage(
@@ -83,12 +70,13 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
             node_id="",
             message="Pipeline'da görüntüleyici (sink) node yok — çıktı görünmeyecek.",
         ))
+    return True
 
-    # 3. Cycle kontrolü
+
+def _check_cycles(graph: PipelineGraph, messages: list[ValidationMessage]) -> bool:
     try:
         topological_sort(graph)
     except CycleDetectedError as e:
-        # e.args[0] döngüde kalan node id'lerinin bir set'i olacak.
         node_ids = e.args[0]
         names = []
         for nid in node_ids:
@@ -105,9 +93,11 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
             node_id="",
             message=f"Sistem üzerinde döngü tespit edildi. Döngüye dahil bloklar: {', '.join(names)}",
         ))
-        return messages  # Cycle varsa diğer kontroller anlamsız
+        return False
+    return True
 
-    # 4. Her node için detaylı kontrol
+
+def _check_node_requirements(graph: PipelineGraph, messages: list[ValidationMessage]) -> None:
     for node in graph.nodes:
         adapter_cls = NodeRegistry.get_adapter_class(node.node_type_id)
         if adapter_cls is None:
@@ -120,7 +110,7 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
 
         descriptor = adapter_cls.descriptor
 
-        # 4a. Zorunlu config kontrolü
+        # Zorunlu config kontrolü
         config_errors = descriptor.validate_config(node.config)
         for err in config_errors:
             messages.append(ValidationMessage(
@@ -129,7 +119,7 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
                 message=f"[{descriptor.display_name}] {err}",
             ))
 
-        # 4b. Zorunlu input port bağlantı kontrolü
+        # Zorunlu input port bağlantı kontrolü
         connected_input_ports = {
             e.target_port
             for e in graph.get_edges_to(node.instance_id)
@@ -145,7 +135,8 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
                     ),
                 ))
 
-    # 5. Port tipi uyumluluk kontrolü
+
+def _check_port_compatibility(graph: PipelineGraph, messages: list[ValidationMessage]) -> None:
     for edge in graph.edges:
         source_node = graph.get_node(edge.source_node_id)
         target_node = graph.get_node(edge.target_node_id)
@@ -178,5 +169,27 @@ def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
                     f"{tgt_port.display_name} ({tgt_port.port_type.name})"
                 ),
             ))
+
+
+def validate_pipeline(graph: PipelineGraph) -> list[ValidationMessage]:
+    """
+    Pipeline'ı doğrula ve mesajları döndür.
+
+    Returns:
+        Doğrulama mesajları listesi (ERROR ve WARNING).
+
+    Raises:
+        ValidationError: Kritik hatalar varsa (caller'ın tercihi).
+    """
+    messages: list[ValidationMessage] = []
+
+    if not _check_basic_topology(graph, messages):
+        return messages
+
+    if not _check_cycles(graph, messages):
+        return messages
+
+    _check_node_requirements(graph, messages)
+    _check_port_compatibility(graph, messages)
 
     return messages

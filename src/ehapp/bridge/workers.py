@@ -8,7 +8,6 @@ PlotRefreshTimer: Engine'deki son tick çıktılarından veri çekerek
 
 from __future__ import annotations
 
-import threading
 from PySide6.QtCore import Signal, QTimer, QObject
 import numpy as np
 
@@ -64,7 +63,6 @@ class PlotRefreshTimer(QObject):
         self._timer.setInterval(interval_ms)
         self._timer.timeout.connect(self._refresh)
         self._engine = None
-        self._lock = threading.Lock()
         self._last_timestamps: dict[str, float] = {}  # "node_id:port_name" -> timestamp
 
         # Son tick çıktılarını depolamak için
