@@ -11,6 +11,8 @@ from __future__ import annotations
 from PySide6.QtCore import Signal, QTimer, QObject
 import numpy as np
 
+from ehcore.registry import NodeRegistry
+
 
 class PipelineWorker(QObject):
     """Pipeline engine kontrolünü yöneten sinyal köprüsü."""
@@ -92,6 +94,11 @@ class PlotRefreshTimer(QObject):
             return
 
         for node_id, node_outputs in outputs.items():
+            graph_node = engine.graph.get_node(node_id)
+            manifest = None
+            if graph_node is not None:
+                manifest = NodeRegistry.get_manifest(graph_node.node_type_id)
+
             for port_name, envelope in node_outputs.items():
                 # Stale (eski) veri kontrolü
                 key = f"{node_id}:{port_name}"
@@ -99,29 +106,82 @@ class PlotRefreshTimer(QObject):
                     continue
                 self._last_timestamps[key] = envelope.timestamp
 
-                data_type = envelope.data_type
                 cf = envelope.center_freq
                 sr = envelope.sample_rate
+                bindings = ()
+                if manifest is not None:
+                    bindings = tuple(
+                        binding
+                        for binding in manifest.visualization_bindings
+                        if binding.port_name == port_name
+                    )
 
-                if data_type == "fft_frame":
-                    # PSD / FFT çerçevesi
-                    if port_name == "threshold_out":
-                        # CFAR eşik eğrisi
-                        self.threshold_data_ready.emit(envelope.payload, cf, sr)
-                    else:
-                        # Normal PSD → Spektrum
-                        self.fft_data_ready.emit(envelope.payload, cf, sr)
-                        waterfall_row = envelope.metadata.get("waterfall_row")
-                        if isinstance(waterfall_row, np.ndarray):
-                            self.waterfall_data_ready.emit(waterfall_row, cf, sr)
-                        else:
-                            self.waterfall_data_ready.emit(envelope.payload, cf, sr)
+                if bindings:
+                    for binding in bindings:
+                        self._emit_binding(binding.view_id, envelope, cf, sr, binding.metadata_key)
+                    continue
 
-                elif data_type == "detections":
-                    # Ham CFAR tespitleri
-                    self.cfar_detections_ready.emit(envelope.payload, cf, sr)
+                self._emit_fallback(envelope, port_name, cf, sr)
 
-                elif data_type == "detection_list":
-                    # Onaylı tespitler
-                    fft_size = int(envelope.metadata.get("fft_size", 0))
-                    self.confirmed_targets_ready.emit(envelope.payload, cf, sr, fft_size)
+    def _emit_binding(
+        self,
+        view_id: str,
+        envelope,
+        center_freq: float,
+        sample_rate: float,
+        metadata_key: str = "",
+    ) -> None:
+        if view_id == "spectrum":
+            self.fft_data_ready.emit(envelope.payload, center_freq, sample_rate)
+            return
+
+        if view_id == "waterfall":
+            row = envelope.metadata.get(metadata_key) if metadata_key else envelope.payload
+            if not isinstance(row, np.ndarray):
+                row = envelope.payload
+            self.waterfall_data_ready.emit(row, center_freq, sample_rate)
+            return
+
+        if view_id == "threshold_overlay":
+            self.threshold_data_ready.emit(envelope.payload, center_freq, sample_rate)
+            return
+
+        if view_id == "cfar_detections":
+            self.cfar_detections_ready.emit(envelope.payload, center_freq, sample_rate)
+            return
+
+        if view_id == "confirmed_targets":
+            fft_size = int(envelope.metadata.get("fft_size", 0))
+            self.confirmed_targets_ready.emit(
+                envelope.payload,
+                center_freq,
+                sample_rate,
+                fft_size,
+            )
+
+    def _emit_fallback(self, envelope, port_name: str, center_freq: float, sample_rate: float) -> None:
+        data_type = envelope.data_type
+        if data_type == "fft_frame":
+            if port_name == "threshold_out":
+                self.threshold_data_ready.emit(envelope.payload, center_freq, sample_rate)
+            else:
+                self.fft_data_ready.emit(envelope.payload, center_freq, sample_rate)
+                waterfall_row = envelope.metadata.get("waterfall_row")
+                if isinstance(waterfall_row, np.ndarray):
+                    self.waterfall_data_ready.emit(waterfall_row, center_freq, sample_rate)
+                else:
+                    self.waterfall_data_ready.emit(envelope.payload, center_freq, sample_rate)
+            return
+
+        if data_type == "detections":
+            self.cfar_detections_ready.emit(envelope.payload, center_freq, sample_rate)
+            return
+
+        if data_type == "detection_list":
+            fft_size = int(envelope.metadata.get("fft_size", 0))
+            self.confirmed_targets_ready.emit(
+                envelope.payload,
+                center_freq,
+                sample_rate,
+                fft_size,
+            )

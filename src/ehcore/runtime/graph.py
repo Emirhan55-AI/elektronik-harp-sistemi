@@ -41,6 +41,7 @@ class PipelineGraph:
     def __init__(self) -> None:
         self._nodes: dict[str, NodeInstance] = {}
         self._edges: list[Edge] = []
+        self._variables: dict[str, Any] = {}
 
     # ── Node İşlemleri ───────────────────────────────────────────
 
@@ -150,6 +151,19 @@ class PipelineGraph:
     def edges(self) -> list[Edge]:
         return list(self._edges)
 
+    @property
+    def variables(self) -> dict[str, Any]:
+        return dict(self._variables)
+
+    def set_variable(self, name: str, value: Any) -> None:
+        self._variables[str(name)] = value
+
+    def set_variables(self, variables: dict[str, Any]) -> None:
+        self._variables = dict(variables)
+
+    def remove_variable(self, name: str) -> None:
+        self._variables.pop(name, None)
+
     # ── Topoloji Sorguları ───────────────────────────────────────
 
     def get_successors(self, node_id: str) -> list[str]:
@@ -183,6 +197,7 @@ class PipelineGraph:
     def to_dict(self) -> dict:
         """Grafiği JSON-serializable dict'e dönüştür."""
         return {
+            "variables": dict(self._variables),
             "nodes": [
                 {
                     "instance_id": n.instance_id,
@@ -207,6 +222,7 @@ class PipelineGraph:
     def from_dict(cls, data: dict) -> PipelineGraph:
         """Dict'ten grafik oluştur."""
         graph = cls()
+        graph.set_variables(data.get("variables", {}))
         for n in data.get("nodes", []):
             graph.add_node(
                 node_type_id=n["node_type_id"],
@@ -227,6 +243,7 @@ class PipelineGraph:
         """Tüm node ve edge'leri temizle."""
         self._nodes.clear()
         self._edges.clear()
+        self._variables.clear()
 
     def __len__(self) -> int:
         return len(self._nodes)

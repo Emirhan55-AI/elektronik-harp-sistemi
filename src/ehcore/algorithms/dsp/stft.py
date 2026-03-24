@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ehcore.algorithms import AlgorithmContext, AlgorithmKernel, AlgorithmPacket
+
 
 def remove_dc_offset(iq_data: np.ndarray) -> np.ndarray:
     """
@@ -191,3 +193,43 @@ def _get_window(name: str, size: int) -> np.ndarray:
             f"Bilinmeyen pencere: '{name}'. Geçerli: {list(windows.keys())}"
         )
     return func(size)
+
+
+class STFTKernel(AlgorithmKernel):
+    """IQ -> FFT dönüşümünü yapan standart kernel."""
+
+    def configure(self, params: dict) -> None:
+        self._params = dict(params)
+
+    def process(
+        self,
+        inputs: dict[str, AlgorithmPacket],
+        context: AlgorithmContext,
+    ) -> dict[str, AlgorithmPacket]:
+        del context
+        iq_packet = inputs.get("iq_in")
+        if iq_packet is None:
+            return {}
+
+        fft_size = int(self._params.get("fft_size", 1024))
+        window = str(self._params.get("window", "hann"))
+        remove_dc = bool(self._params.get("remove_dc", True))
+
+        spectrogram_db, _ = compute_stft(
+            iq_packet.payload,
+            fft_size=fft_size,
+            window=window,
+            remove_dc=remove_dc,
+        )
+        psd_db = np.mean(spectrogram_db, axis=0)
+        waterfall_row = spectrogram_db[-1].astype(np.float32, copy=False)
+
+        fft_packet = iq_packet.clone(
+            payload=psd_db,
+            metadata={
+                **iq_packet.metadata,
+                "fft_size": fft_size,
+                "waterfall_row": waterfall_row,
+            },
+        )
+        return {"fft_out": fft_packet}

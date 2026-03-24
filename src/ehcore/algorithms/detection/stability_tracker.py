@@ -21,6 +21,10 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+import numpy as np
+
+from ehcore.algorithms import AlgorithmContext, AlgorithmKernel, AlgorithmPacket
+
 from .cfar import CFARDetection
 
 
@@ -240,3 +244,106 @@ class StabilityTracker:
         if (now - track.last_seen) >= self.confirmed_stale_after:
             return "stale"
         return "confirmed"
+
+
+class StabilityFilterKernel(AlgorithmKernel):
+    """CFAR tespitlerini zaman boyunca doğrulayan kernel."""
+
+    _confirmed_dtype = [
+        ("target_id", np.int32),
+        ("center_freq_normalized", np.float64),
+        ("center_bin", np.int32),
+        ("bandwidth_bins", np.int32),
+        ("power_db", np.float64),
+        ("snr_db", np.float64),
+        ("first_seen", np.float64),
+        ("last_seen", np.float64),
+        ("hit_count", np.int32),
+        ("state", "U12"),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._tracker: StabilityTracker | None = None
+
+    def configure(self, params: dict) -> None:
+        self._params = dict(params)
+
+    def start(self) -> None:
+        self._tracker = StabilityTracker(
+            min_hits=int(self._params.get("min_hits", 5)),
+            max_misses=int(self._params.get("max_misses", 3)),
+            freq_tolerance_bins=int(self._params.get("freq_tolerance_bins", 4)),
+            confirmed_stale_after=float(self._params.get("stale_after_sec", 1.0)),
+            confirmed_hold_seconds=float(self._params.get("confirmed_hold_sec", 8.0)),
+        )
+
+    def stop(self) -> None:
+        if self._tracker is not None:
+            self._tracker.reset()
+
+    def reset(self) -> None:
+        if self._tracker is not None:
+            self._tracker.reset()
+
+    def process(
+        self,
+        inputs: dict[str, AlgorithmPacket],
+        context: AlgorithmContext,
+    ) -> dict[str, AlgorithmPacket]:
+        del context
+        detections_packet = inputs.get("detections_in")
+        if detections_packet is None or self._tracker is None:
+            return {}
+
+        detections: list[CFARDetection] = []
+        array = detections_packet.payload
+        if array.size > 0:
+            for row in array:
+                detections.append(
+                    CFARDetection(
+                        bin_index=int(row["bin_index"]),
+                        freq_normalized=float(row["freq_normalized"]),
+                        power_db=float(row["power_db"]),
+                        threshold_db=float(row["threshold_db"]),
+                        snr_db=float(row["snr_db"]),
+                        bandwidth_bins=int(row["bandwidth_bins"]),
+                    )
+                )
+
+        confirmed = self._tracker.update(
+            detections,
+            timestamp=detections_packet.timestamp,
+        )
+
+        if confirmed:
+            confirmed_array = np.array(
+                [
+                    (
+                        target.target_id,
+                        target.center_freq_normalized,
+                        target.center_bin,
+                        target.bandwidth_bins,
+                        target.power_db,
+                        target.snr_db,
+                        target.first_seen,
+                        target.last_seen,
+                        target.hit_count,
+                        target.state,
+                    )
+                    for target in confirmed
+                ],
+                dtype=self._confirmed_dtype,
+            )
+        else:
+            confirmed_array = np.array([], dtype=self._confirmed_dtype)
+
+        confirmed_packet = detections_packet.clone(
+            payload=confirmed_array,
+            metadata={
+                **detections_packet.metadata,
+                "confirmed_count": len(confirmed),
+                "active_tracks": self._tracker.active_tracks,
+            },
+        )
+        return {"confirmed_out": confirmed_packet}

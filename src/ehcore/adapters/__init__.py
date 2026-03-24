@@ -1,20 +1,19 @@
 """
-ehcore.adapters — Node adaptörleri paketi.
+ehcore.adapters - sistem sahipli adapter bootstrap paketi.
 
-Bu modül import edildiğinde built-in adaptörler otomatik olarak
-NodeRegistry'ye kaydolur (@NodeRegistry.register decorator'ı ile).
+Built-in bloklar merkezi manifest katalogundan registry'ye kaydedilir.
+Eski adapter dosyalari uyumluluk amaciyla repoda kalabilir; otomatik bootstrap
+manifest tabani uzerinden calisir.
 """
 
+from ehcore.catalog.bootstrap import register_builtin_manifests
+
 from ._base import BaseAdapter
-from .sigmf_source_adapter import SigMFSourceAdapter
-from .stft_adapter import STFTAdapter
-from .cfar_adapter import CFARAdapter
-from .stability_adapter import StabilityFilterAdapter
+from .manifest_backed import ManifestBackedAdapter
+
+register_builtin_manifests()
 
 __all__ = [
     "BaseAdapter",
-    "SigMFSourceAdapter",
-    "STFTAdapter",
-    "CFARAdapter",
-    "StabilityFilterAdapter",
+    "ManifestBackedAdapter",
 ]

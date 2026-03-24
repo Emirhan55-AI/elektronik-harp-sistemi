@@ -1,9 +1,4 @@
-"""
-DetectionsTable - Persistent confirmed target table for operators.
-
-The table keeps track rows stable across updates, supports freezing the
-view, and can optionally hide stale tracks.
-"""
+"""Operator odakli kalici tespit tablosu."""
 
 from __future__ import annotations
 
@@ -25,25 +20,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ehapp.strings.tr import PLOT_DETECTIONS
+from ehapp.strings import tr
 from ehapp.theme.tokens import COLORS, FONTS
 
 
 class DetectionsTable(QWidget):
-    """Confirmed target list with stable rows and operator controls."""
+    """Onayli hedefleri kararlı satirlarla gosterir."""
 
-    detection_selected = Signal(float)  # Selected detection frequency in MHz.
+    detection_selected = Signal(float)
 
     HEADERS = [
-        "ID",
-        "Durum",
-        "Merkez Frekans (MHz)",
-        "Güç (dB)",
-        "SNR (dB)",
-        "BW (kHz)",
-        "Hit",
-        "Son Görülme (s)",
-        "Süre (s)",
+        tr.DETECTIONS_HEADER_ID,
+        tr.DETECTIONS_HEADER_STATE,
+        tr.DETECTIONS_HEADER_FREQ,
+        tr.DETECTIONS_HEADER_POWER,
+        tr.DETECTIONS_HEADER_SNR,
+        tr.DETECTIONS_HEADER_BW,
+        tr.DETECTIONS_HEADER_HIT,
+        tr.DETECTIONS_HEADER_LAST_SEEN,
+        tr.DETECTIONS_HEADER_DURATION,
     ]
 
     def __init__(self, parent=None) -> None:
@@ -67,27 +62,26 @@ class DetectionsTable(QWidget):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(8, 4, 8, 4)
 
-        title = QLabel(PLOT_DETECTIONS)
+        title = QLabel(tr.PLOT_DETECTIONS)
         title.setStyleSheet(
             f"color: {COLORS['text_accent']}; "
             f"font-weight: {FONTS['weight_bold']}; "
             f"font-size: {FONTS['size_md']}px;"
         )
         header_layout.addWidget(title)
-
         header_layout.addStretch()
 
-        self._show_stale_check = QCheckBox("Stale göster")
+        self._show_stale_check = QCheckBox(tr.DETECTIONS_SHOW_STALE)
         self._show_stale_check.setChecked(True)
         self._show_stale_check.toggled.connect(self._on_show_stale_toggled)
         header_layout.addWidget(self._show_stale_check)
 
-        self._freeze_btn = QPushButton("Dondur")
+        self._freeze_btn = QPushButton(tr.DETECTIONS_FREEZE)
         self._freeze_btn.setCheckable(True)
         self._freeze_btn.toggled.connect(self._on_freeze_toggled)
         header_layout.addWidget(self._freeze_btn)
 
-        self._count_label = QLabel("0 aktif")
+        self._count_label = QLabel(tr.DETECTIONS_COUNT_ACTIVE.format(count=0))
         self._count_label.setStyleSheet(
             f"color: {COLORS['text_secondary']}; "
             f"font-size: {FONTS['size_sm']}px;"
@@ -114,7 +108,6 @@ class DetectionsTable(QWidget):
         sample_rate: float = 1.0,
         fft_size: int = 0,
     ) -> None:
-        """Update the persistent target list."""
         self._last_snapshot = (
             confirmed_array.copy(),
             float(center_freq),
@@ -128,10 +121,9 @@ class DetectionsTable(QWidget):
         self._apply_snapshot(confirmed_array, center_freq, sample_rate, fft_size)
 
     def clear_detections(self) -> None:
-        """Clear all table state."""
         self._freeze_btn.blockSignals(True)
         self._freeze_btn.setChecked(False)
-        self._freeze_btn.setText("Dondur")
+        self._freeze_btn.setText(tr.DETECTIONS_FREEZE)
         self._freeze_btn.blockSignals(False)
         self._frozen = False
         self._table.clearSelection()
@@ -140,7 +132,7 @@ class DetectionsTable(QWidget):
         self._selected_target_id = None
         self._last_snapshot = None
         self._pending_snapshot = None
-        self._count_label.setText("0 aktif")
+        self._count_label.setText(tr.DETECTIONS_COUNT_ACTIVE.format(count=0))
 
     def _apply_snapshot(
         self,
@@ -152,7 +144,7 @@ class DetectionsTable(QWidget):
         selected_id = self._current_selected_target_id()
         now = time.time()
 
-        visible_rows: list[tuple[int, str, list[str], float]] = []
+        visible_rows: list[tuple[int, str, list[str]]] = []
         active_count = 0
         stale_count = 0
 
@@ -181,7 +173,11 @@ class DetectionsTable(QWidget):
             age_since_seen = max(0.0, now - last_seen)
             duration = max(0.0, now - first_seen)
 
-            state_label = "Aktif" if state == "confirmed" else "Stale"
+            state_label = (
+                tr.DETECTIONS_STATE_ACTIVE
+                if state == "confirmed"
+                else tr.DETECTIONS_STATE_STALE
+            )
             visible_rows.append(
                 (
                     target_id,
@@ -197,23 +193,25 @@ class DetectionsTable(QWidget):
                         f"{age_since_seen:.1f}",
                         f"{duration:.1f}",
                     ],
-                    freq_mhz,
                 )
             )
 
         self._table.blockSignals(True)
-        self._remove_missing_targets({target_id for target_id, _, _, _ in visible_rows})
+        self._remove_missing_targets({target_id for target_id, _, _ in visible_rows})
 
-        for target_id, state, items, _freq_mhz in visible_rows:
+        for target_id, state, items in visible_rows:
             row = self._ensure_row(target_id)
             self._set_row_items(row, items)
             self._apply_row_style(row, state, float(items[4]))
 
         self._table.blockSignals(False)
 
-        count_text = f"{active_count} aktif"
+        count_text = tr.DETECTIONS_COUNT_ACTIVE.format(count=active_count)
         if stale_count > 0:
-            count_text += f"  |  {stale_count} stale"
+            count_text = tr.DETECTIONS_COUNT_ACTIVE_STALE.format(
+                active=active_count,
+                stale=stale_count,
+            )
         self._count_label.setText(count_text)
 
         if selected_id is not None and selected_id in self._row_by_target_id:
@@ -269,7 +267,11 @@ class DetectionsTable(QWidget):
             for target_id in self._row_by_target_id
             if target_id not in visible_target_ids
         ]
-        for target_id in sorted(missing_ids, key=lambda tid: self._row_by_target_id[tid], reverse=True):
+        for target_id in sorted(
+            missing_ids,
+            key=lambda tid: self._row_by_target_id[tid],
+            reverse=True,
+        ):
             row = self._row_by_target_id[target_id]
             self._table.removeRow(row)
         if missing_ids:
@@ -295,7 +297,6 @@ class DetectionsTable(QWidget):
         return self._selected_target_id
 
     def _on_selection(self, row: int, _col: int, _prev_row: int, _prev_col: int) -> None:
-        """Emit the selected target frequency."""
         if row < 0:
             return
 
@@ -313,7 +314,7 @@ class DetectionsTable(QWidget):
 
     def _on_freeze_toggled(self, frozen: bool) -> None:
         self._frozen = frozen
-        self._freeze_btn.setText("Canlı" if frozen else "Dondur")
+        self._freeze_btn.setText(tr.DETECTIONS_LIVE if frozen else tr.DETECTIONS_FREEZE)
         if not frozen and self._pending_snapshot is not None:
             snapshot = self._pending_snapshot
             self._pending_snapshot = None

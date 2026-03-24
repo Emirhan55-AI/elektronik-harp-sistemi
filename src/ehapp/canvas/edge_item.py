@@ -60,6 +60,8 @@ class EdgeItem(QGraphicsPathItem):
         self._glow_effect.setEnabled(False)
         self.setGraphicsEffect(self._glow_effect)
 
+        self._runtime_debug_text = ""
+
         if source_port and target_port:
             source_port.add_edge(self)
             target_port.add_edge(self)
@@ -119,10 +121,24 @@ class EdgeItem(QGraphicsPathItem):
         if state == "running":
             self._timer.start(50)  # 20 FPS (Saniyede 20 kere akış frame'i)
             self._glow_effect.setEnabled(True)
+            self._glow_effect.setColor(QColor(COLORS["success"]))
+        elif state == "warning":
+            self._timer.stop()
+            self._glow_effect.setEnabled(True)
+            self._glow_effect.setColor(QColor(COLORS["warning"]))
+        elif state == "stale":
+            self._timer.stop()
+            self._glow_effect.setEnabled(True)
+            self._glow_effect.setColor(QColor(COLORS["info"]))
         else:
             self._timer.stop()
             self._glow_effect.setEnabled(False)
         self.update()
+
+    def set_runtime_debug_info(self, text: str, state: str = "idle") -> None:
+        self._runtime_debug_text = text
+        self.setToolTip(text)
+        self.set_state(state)
 
     def _advance_dash(self) -> None:
         self._dash_offset -= 2  # Akış hızı
@@ -138,6 +154,11 @@ class EdgeItem(QGraphicsPathItem):
             pen = QPen(QColor(COLORS["success"]), self._width + 0.5, Qt.PenStyle.DashLine)
             pen.setDashPattern([6, 4])
             pen.setDashOffset(self._dash_offset)
+        elif self._state == "warning":
+            pen = QPen(QColor(COLORS["warning"]), self._width + 0.5, Qt.PenStyle.SolidLine)
+        elif self._state == "stale":
+            pen = QPen(QColor(COLORS["info"]), self._width, Qt.PenStyle.DashLine)
+            pen.setDashPattern([3, 5])
         elif self._is_preview:
             pen = QPen(self._color_preview, self._width, Qt.PenStyle.SolidLine)
 

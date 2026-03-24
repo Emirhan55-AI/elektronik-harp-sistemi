@@ -94,6 +94,33 @@ def build_stylesheet() -> str:
         background-color: {c['accent_pressed']};
     }}
 
+    QDockWidget {{
+        background-color: {c['bg_secondary']};
+        border: 1px solid {c['border_default']};
+        titlebar-close-icon: none;
+        titlebar-normal-icon: none;
+    }}
+
+    QDockWidget::title {{
+        text-align: left;
+        background-color: {c['bg_secondary']};
+        color: {c['text_primary']};
+        padding: 8px 10px;
+        border-bottom: 1px solid {c['border_default']};
+        font-size: {f['size_md']}px;
+        font-weight: {f['weight_medium']};
+    }}
+
+    QMainWindow::separator {{
+        background-color: {c['border_default']};
+        width: 2px;
+        height: 2px;
+    }}
+
+    QMainWindow::separator:hover {{
+        background-color: {c['accent_secondary']};
+    }}
+
     /* ═══════ TAB WIDGET ═══════ */
 
     QTabWidget::pane {{
@@ -272,6 +299,35 @@ def build_stylesheet() -> str:
         background-color: {c['accent_pressed']};
     }}
 
+    QPushButton#PrimaryButton {{
+        background-color: {c['accent_primary']};
+        color: {c['bg_primary']};
+        border-color: {c['accent_primary']};
+        font-weight: {f['weight_bold']};
+    }}
+
+    QPushButton#PrimaryButton:hover {{
+        background-color: {c['accent_hover']};
+        border-color: {c['accent_hover']};
+    }}
+
+    QPushButton#IconButton {{
+        min-width: 24px;
+        max-width: 24px;
+        min-height: 24px;
+        max-height: 24px;
+        padding: 0;
+        background-color: transparent;
+        border: 1px solid transparent;
+        color: {c['text_secondary']};
+    }}
+
+    QPushButton#IconButton:hover {{
+        background-color: {c['bg_elevated']};
+        border-color: {c['border_default']};
+        color: {c['text_primary']};
+    }}
+
     /* ═══════ LABEL ═══════ */
 
     QLabel {{
@@ -327,6 +383,67 @@ def build_stylesheet() -> str:
         border-radius: {s['radius_sm']}px;
         font-family: "{f['family_mono']}";
         font-size: {f['size_sm']}px;
+    }}
+
+    QListWidget#IssuesList {{
+        border: 1px solid {c['border_default']};
+        border-radius: {s['radius_md']}px;
+        background-color: {c['bg_input']};
+        padding: 4px;
+    }}
+
+    QListWidget#IssuesList::item {{
+        padding: 8px 10px;
+        margin: 2px 0;
+        border-radius: {s['radius_sm']}px;
+        border: 1px solid transparent;
+    }}
+
+    QListWidget#IssuesList::item:selected {{
+        background-color: {c['bg_elevated']};
+        border-color: {c['border_default']};
+    }}
+
+    QListWidget#EventFeedList {{
+        border: 1px solid {c['border_default']};
+        border-radius: {s['radius_md']}px;
+        background-color: {c['bg_input']};
+        padding: 4px;
+    }}
+
+    QListWidget#EventFeedList::item {{
+        padding: 8px 10px;
+        margin: 2px 0;
+        border-radius: {s['radius_sm']}px;
+        border: 1px solid transparent;
+    }}
+
+    QListWidget#EventFeedList::item:selected {{
+        background-color: {c['bg_elevated']};
+        border-color: {c['border_default']};
+    }}
+
+    QFrame#InspectorCard {{
+        background-color: {c['bg_input']};
+        border: 1px solid {c['border_default']};
+        border-radius: {s['radius_md']}px;
+    }}
+
+    QLabel#SectionTitle {{
+        color: {c['text_accent']};
+        font-size: {f['size_sm']}px;
+        font-weight: {f['weight_bold']};
+        letter-spacing: 0.5px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid {c['border_default']};
+        margin-bottom: 4px;
+    }}
+
+    QLabel#SummaryValue {{
+        color: {c['text_primary']};
+        font-size: {f['size_md']}px;
+        font-weight: {f['weight_medium']};
+        qproperty-alignment: AlignRight | AlignVCenter;
     }}
 
     /* ═══════ TOOLTIPS ═══════ */

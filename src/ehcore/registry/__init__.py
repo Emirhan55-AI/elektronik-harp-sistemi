@@ -1,6 +1,12 @@
-"""ehcore.registry — Node kayıt ve keşif sistemi."""
+﻿"""ehcore.registry - Node kayit ve kesif sistemi."""
 
 from .registry import NodeRegistry
-from .discovery import discover_plugins
+from .discovery import PluginDiscoveryEntry, PluginDiscoveryReport, discover_plugins, discover_plugins_report
 
-__all__ = ["NodeRegistry", "discover_plugins"]
+__all__ = [
+    "NodeRegistry",
+    "PluginDiscoveryEntry",
+    "PluginDiscoveryReport",
+    "discover_plugins",
+    "discover_plugins_report",
+]

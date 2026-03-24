@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ehcore.algorithms import AlgorithmContext, AlgorithmKernel, AlgorithmPacket
+
 
 @dataclass
 class CFARDetection:
@@ -175,3 +177,78 @@ def _merge_detections(
         ))
 
     return detections
+
+
+class CFARKernel(AlgorithmKernel):
+    """FFT çıktısı üzerinde CA-CFAR çalıştıran kernel."""
+
+    _detection_dtype = [
+        ("bin_index", np.int32),
+        ("freq_normalized", np.float64),
+        ("power_db", np.float64),
+        ("threshold_db", np.float64),
+        ("snr_db", np.float64),
+        ("bandwidth_bins", np.int32),
+    ]
+
+    def configure(self, params: dict) -> None:
+        self._params = dict(params)
+
+    def process(
+        self,
+        inputs: dict[str, AlgorithmPacket],
+        context: AlgorithmContext,
+    ) -> dict[str, AlgorithmPacket]:
+        del context
+        fft_packet = inputs.get("fft_in")
+        if fft_packet is None:
+            return {}
+
+        guard = int(self._params.get("num_guard_cells", 4))
+        ref = int(self._params.get("num_reference_cells", 16))
+        threshold = float(self._params.get("threshold_factor_db", 6.0))
+
+        result = ca_cfar(
+            fft_packet.payload,
+            num_guard_cells=guard,
+            num_reference_cells=ref,
+            threshold_factor_db=threshold,
+            merge_adjacent=True,
+        )
+
+        if result.detections:
+            detections = np.array(
+                [
+                    (
+                        item.bin_index,
+                        item.freq_normalized,
+                        item.power_db,
+                        item.threshold_db,
+                        item.snr_db,
+                        item.bandwidth_bins,
+                    )
+                    for item in result.detections
+                ],
+                dtype=self._detection_dtype,
+            )
+        else:
+            detections = np.array([], dtype=self._detection_dtype)
+
+        detections_packet = fft_packet.clone(
+            payload=detections,
+            metadata={
+                **fft_packet.metadata,
+                "detection_count": result.count,
+                "cfar_guard": guard,
+                "cfar_ref": ref,
+                "cfar_threshold_db": threshold,
+            },
+        )
+        threshold_packet = fft_packet.clone(
+            payload=result.threshold_curve,
+            metadata=dict(fft_packet.metadata),
+        )
+        return {
+            "detections_out": detections_packet,
+            "threshold_out": threshold_packet,
+        }

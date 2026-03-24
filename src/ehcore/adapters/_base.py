@@ -1,76 +1,87 @@
 """
-BaseAdapter — Tüm node adaptörlerinin soyut temel sınıfı.
+BaseAdapter - tum node adapter'lerinin sistem sahipli temel sinifi.
 
-Her adapter:
-1. Bir NodeDescriptor taşır (tip bilgisi).
-2. configure() ile ayarlanır.
-3. process() ile veri işler.
-4. start()/stop() ile yaşam döngüsü yönetir.
-
-Adapter, algoritma kodunu doğrudan içermez — ilgili algoritma
-modülünü çağırır. Bu katman ince bir köprüdür.
+Algoritma yazari bu sinifa dokunmaz; adapter katmani runtime/UI koprusudur.
 """
 
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
-from typing import ClassVar
+from typing import Any, ClassVar, Mapping
 
+from ehcore.algorithms import AlgorithmMetricsSnapshot
 from ehcore.contracts import DataEnvelope, NodeDescriptor
 
 
 class BaseAdapter(ABC):
-    """Tüm node adaptörleri bu sınıftan türer."""
+    """Tum node adapter'leri bu siniftan turer."""
 
-    # Alt sınıf bu alanı MUTLAKA tanımlamalı
     descriptor: ClassVar[NodeDescriptor]
 
     def __init__(self) -> None:
-        self._config: dict = {}
-        self._state: str = "idle"  # "idle" | "running" | "error"
+        self._config: dict[str, Any] = {}
+        self._state: str = "idle"
         self._error_message: str = ""
+        self._node_instance_id: str = ""
+        self._tick_id: int = 0
+        self._variables: dict[str, Any] = {}
 
-    # ── Yaşam Döngüsü ───────────────────────────────────────────
+        self._frame_count = 0
+        self._dropped_frames = 0
+        self._last_process_duration_ms = 0.0
+        self._average_process_duration_ms = 0.0
+        self._last_tick_timestamp = 0.0
 
     @abstractmethod
     def configure(self, config: dict) -> None:
-        """
-        Node ayarlarını uygula.
-        config, NodeDescriptor.config_schema'ya uygun olmalı.
-        """
         ...
 
     @abstractmethod
-    def process(
-        self,
-        inputs: dict[str, DataEnvelope],
-    ) -> dict[str, DataEnvelope]:
-        """
-        Tek bir işleme adımı.
-
-        Args:
-            inputs: Port adı → DataEnvelope eşlemesi.
-
-        Returns:
-            Çıkış portları → DataEnvelope eşlemesi.
-        """
+    def process(self, inputs: dict[str, DataEnvelope]) -> dict[str, DataEnvelope]:
         ...
 
     def start(self) -> None:
-        """Pipeline başlatıldığında çağrılır."""
         self._state = "running"
         self._error_message = ""
 
     def stop(self) -> None:
-        """Pipeline durdurulduğunda çağrılır."""
         self._state = "idle"
 
     def reset(self) -> None:
-        """Sıfırlama — state ve hatayı temizle."""
         self._state = "idle"
         self._error_message = ""
+        self._frame_count = 0
+        self._dropped_frames = 0
+        self._last_process_duration_ms = 0.0
+        self._average_process_duration_ms = 0.0
+        self._last_tick_timestamp = 0.0
 
-    # ── Durum Bilgisi ────────────────────────────────────────────
+    def bind_runtime_identity(self, node_instance_id: str) -> None:
+        self._node_instance_id = node_instance_id
+
+    def prepare_tick(self, tick_id: int, variables: Mapping[str, Any] | None = None) -> None:
+        self._tick_id = tick_id
+        self._variables = dict(variables or {})
+
+    def execute(self, inputs: dict[str, DataEnvelope]) -> dict[str, DataEnvelope]:
+        started = time.perf_counter()
+        outputs = self.process(inputs)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        self._record_metrics(outputs, elapsed_ms)
+        return outputs
+
+    def _record_metrics(self, outputs: dict[str, DataEnvelope], elapsed_ms: float) -> None:
+        self._frame_count += 1
+        self._last_process_duration_ms = elapsed_ms
+        self._last_tick_timestamp = time.time()
+        if self._frame_count == 1:
+            self._average_process_duration_ms = elapsed_ms
+        else:
+            prev = self._average_process_duration_ms
+            self._average_process_duration_ms = prev + (elapsed_ms - prev) / self._frame_count
+        if not outputs:
+            self._dropped_frames += 1
 
     @property
     def state(self) -> str:
@@ -80,17 +91,35 @@ class BaseAdapter(ABC):
     def error_message(self) -> str:
         return self._error_message
 
+    @property
+    def node_instance_id(self) -> str:
+        return self._node_instance_id
+
+    @property
+    def tick_id(self) -> int:
+        return self._tick_id
+
+    @property
+    def variables(self) -> Mapping[str, Any]:
+        return self._variables
+
     def set_error(self, message: str) -> None:
-        """Node'u hata durumuna düşür."""
         self._state = "error"
         self._error_message = message
 
-    # ── Config Erişimi ───────────────────────────────────────────
-
     @property
-    def config(self) -> dict:
+    def config(self) -> dict[str, Any]:
         return self._config
 
     def get_config_value(self, key: str, default=None):
-        """Config'den değer oku, yoksa default döndür."""
         return self._config.get(key, default)
+
+    def metrics_snapshot(self) -> AlgorithmMetricsSnapshot:
+        return AlgorithmMetricsSnapshot(
+            frame_count=self._frame_count,
+            dropped_frames=self._dropped_frames,
+            last_process_duration_ms=self._last_process_duration_ms,
+            average_process_duration_ms=self._average_process_duration_ms,
+            last_tick_timestamp=self._last_tick_timestamp,
+            last_error=self._error_message,
+        )
