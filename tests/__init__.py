@@ -1,1 +1,0 @@
-"""ehcore test paketi."""

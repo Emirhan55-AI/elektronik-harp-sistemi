@@ -24,7 +24,7 @@ dev = [
 ]
 
 [project.scripts]
-eh-system = "ehapp.__main__:main"
+eh-system = "app.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -32,3 +32,4 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+

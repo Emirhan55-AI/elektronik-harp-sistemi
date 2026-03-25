@@ -1,0 +1,1 @@
+"""Merkezi UI metinleri."""
