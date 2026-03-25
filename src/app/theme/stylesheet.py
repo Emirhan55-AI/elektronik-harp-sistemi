@@ -440,7 +440,6 @@ def build_stylesheet() -> str:
     QPushButton#ModeToggle:hover {{
         background-color: {c['bg_elevated']};
         color: {c['text_primary']};
-        z-index: 10;
     }}
 
     QPushButton#ModeToggle:checked {{
@@ -448,7 +447,6 @@ def build_stylesheet() -> str:
         color: {c['accent_primary']};
         border: 1px solid {c['accent_primary']};
         font-weight: {f['weight_bold']};
-        z-index: 20;
     }}
 
     QPushButton#IconButton {{

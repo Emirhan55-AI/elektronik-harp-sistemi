@@ -31,8 +31,8 @@ Thumbs.db
 # Project
 *.ehproj
 data/
-docs/
-plugins/
-tests/
+plugins/*
+!plugins/README.md
+
 # Environment
 .env

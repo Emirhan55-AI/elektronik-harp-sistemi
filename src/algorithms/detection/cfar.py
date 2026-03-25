@@ -8,7 +8,7 @@ seviyesinden dinamik eşik türetir.
 Tüm hesaplamalar %100 vektörize NumPy işlemleridir.
 Kayan pencere ortalaması 1D konvolüsyon ile yapılır — döngü YOKTUR.
 
-NOT: Bu dosya ehcore/algorithms/detection/ altındadır.
+NOT: Bu dosya src/algorithms/detection/ altindadir.
      UI bağımlılığı YOKTUR.
 """
 

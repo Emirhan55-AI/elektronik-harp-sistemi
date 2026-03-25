@@ -7,7 +7,7 @@ DC ofset temizleme, pencereleme ve Welch PSD hesaplama içerir.
 Tüm hesaplamalar %100 vektörize NumPy/SciPy işlemleridir —
 döngü kullanılmaz.
 
-NOT: Bu dosya ehcore/algorithms/ altındadır — saf DSP matematiği.
+NOT: Bu dosya src/algorithms/ altindadir - saf DSP matematigi.
      UI bağımlılığı YOKTUR.
 """
 

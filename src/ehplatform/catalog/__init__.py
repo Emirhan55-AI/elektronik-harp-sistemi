@@ -1,6 +1,5 @@
 """Merkezi manifest katalog katmani."""
 
-from .builtins import BUILTIN_NODE_MANIFESTS
 from .discovery import discover_manifests
 from .scaffold import (
     build_integration_checklist_text,
@@ -22,7 +21,6 @@ from .validation import (
 )
 
 __all__ = [
-    "BUILTIN_NODE_MANIFESTS",
     "discover_manifests",
     "ManifestConfigDraft",
     "ManifestDraft",
@@ -41,5 +39,3 @@ __all__ = [
     "validate_manifest",
     "validate_manifest_collection",
 ]
-
-

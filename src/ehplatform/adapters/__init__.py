@@ -2,8 +2,7 @@
 Sistem sahipli adapter bootstrap paketi.
 
 Built-in bloklar merkezi manifest katalogundan registry'ye kaydedilir.
-Eski adapter dosyalari uyumluluk amaciyla repoda kalabilir; otomatik bootstrap
-manifest tabani uzerinden calisir.
+Runtime manifest tabanli bootstrap uzerinden calisir.
 """
 
 from ehplatform.catalog.bootstrap import register_builtin_manifests

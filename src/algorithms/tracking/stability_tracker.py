@@ -12,7 +12,7 @@ Böylece:
 
 Tüm hesaplamalar NumPy ve dict tabanlıdır — kilitlenme riski yoktur.
 
-NOT: Bu dosya ehcore/algorithms/detection/ altındadır.
+NOT: Bu dosya src/algorithms/tracking/ altindadir.
      UI bağımlılığı YOKTUR.
 """
 

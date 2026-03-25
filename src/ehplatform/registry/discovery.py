@@ -143,7 +143,7 @@ def _load_plugin_module(candidate: Path, module_name: str):
 def _build_module_name(candidate: Path) -> str:
     suffix = "pkg" if candidate.is_dir() else "py"
     sanitized = "".join(ch if ch.isalnum() else "_" for ch in candidate.stem.lower())
-    return f"ehcore_plugin_{suffix}_{sanitized}"
+    return f"ehsystem_plugin_{suffix}_{sanitized}"
 
 
 def _extract_manifests(module) -> Iterable[NodeManifest]:
